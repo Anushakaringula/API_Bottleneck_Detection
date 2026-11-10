@@ -30,7 +30,8 @@ temporary folder, compared byte-for-byte), run `scripts/verify-legacy.sh`.
 
 The command prints the newly created analysis directory. It contains
 `run_features.jsonl`, `run_metadata.jsonl`, `telemetry_observations.jsonl`,
-`data_quality.jsonl`, and `manifest.json`. The source files are only read. Each
+`data_quality.jsonl`, `manifest.json`, and (since Phase 3.5A)
+`request_records.jsonl` and `request_join_summary.json`. The source files are only read. Each
 manifest records input SHA-256 hashes and schema/analyzer versions.
 
 To run tests and inspect generated outputs:
@@ -94,12 +95,40 @@ When constructing future train/test splits, every run with the same
 `repeat_group_id` must stay in the same partition. Do not treat repeat runs or
 requests from one run as independent experimental units.
 
+## Request-level join (Phase 3.5A)
+
+Since Phase 3.5A the runner sends a W3C `traceparent` with each request and
+records its `trace_id`. The analyzer joins each client request to the experiment
+span with the same trace ID and run ID, and writes two extra files:
+
+- `request_records.jsonl`: one row per client request (warm-up and measured).
+  Fields: `match_status` (`matched`, `no_server_span`, `multiple_server_spans`,
+  `run_id_mismatch`, `no_client_trace_id`), client and server latency, their
+  difference (`client_minus_server_ms`: network, client and queueing time), client
+  and server status and bytes.
+- `request_join_summary.json`: per-run and total match counts, the
+  `exact_match_rate`, and `server_spans_without_client_request`.
+
+Incomplete matching for requests that have a trace ID is written to
+`data_quality.jsonl` as `request_level_correlation_incomplete`. Requests recorded
+before Phase 3.5A have no trace ID and are reported as `no_client_trace_id`;
+nothing is inferred for them.
+
+These files are for correlation and data quality only. They are **not
+predictors**. They are not listed in `manifest.json`, which keeps the run-level
+outputs of earlier analyses byte-for-byte reproducible.
+
+Spans with `experiment.telemetry_schema = "2"` are validated without the removed
+`experiment.scenario` attribute. A server span whose parent is the client's
+(unexported) span is not reported as `parent_span_not_in_input`.
+
 ## Correlation and quality
 
 Only `experiment.http.request` spans are counted as experiment request spans;
 other auto-instrumented spans are not request counts. The Phase 1/2 data has no
 client-visible request ID shared by request records and spans, so exact
-request-to-span matching is impossible. For failed HTTP requests, status-code
+request-to-span matching is impossible for it (see the request-level join above
+for newer data). For failed HTTP requests, status-code
 overlap is reported as aggregate count-level correspondence, not proof of an
 individual match. Connection failures without status are reported separately;
 extra spans can indicate that some such requests reached the service, but this

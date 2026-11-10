@@ -10,9 +10,9 @@ echo "== target-api (node --test) =="
 (cd target-api && npm test --silent)
 
 echo "== experiments/experiment_runner =="
-python3 -m unittest discover -s experiments/experiment_runner/tests
+"$ABR_PYTHON" -m unittest discover -s experiments/experiment_runner/tests
 
 echo "== pipeline/telemetry_analysis =="
-python3 -m unittest discover -s pipeline/telemetry_analysis/tests
+"$ABR_PYTHON" -m unittest discover -s pipeline/telemetry_analysis/tests
 
 echo "ALL TEST SUITES PASSED"

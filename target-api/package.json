@@ -1,11 +1,15 @@
 {
-  "name": "backend",
+  "name": "target-api",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node --import ./instrumentation.mjs ./src/server.js",
     "start:env": "node --env-file=../.env --import ./instrumentation.mjs ./src/server.js",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",

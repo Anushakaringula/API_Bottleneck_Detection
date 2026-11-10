@@ -14,10 +14,13 @@ Labels used in this file:
 - On 10 November 2026 the repository was **reorganised by workflow role** (see
   [docs/architecture.md](docs/architecture.md)). All existing behaviour was
   preserved, and the 9 Nov analysis was reproduced byte-for-byte from the moved data.
-  The reorganisation is **not yet committed to git**.
+  The reorganisation is committed (`911af77`).
 - An audit found that the data collected so far is **not good enough to evaluate
   bottleneck detection**. The team therefore added a preparation phase (3.5) before
-  detection (Phase 4). **No Phase 3.5 code has been written yet.**
+  detection (Phase 4).
+- **Phase 0 (housekeeping) and Phase 3.5A (telemetry fixes) are implemented**
+  (10 Nov 2026, not yet committed). See [Phase 0 and 3.5A](#phase-0-and-35a-implemented-10-november-2026)
+  for what still has to be verified. Phases 3.5B–3.5D are not started.
 
 ## Completed
 
@@ -33,8 +36,7 @@ Labels used in this file:
 - Spans are written to `data/raw/spans/otel-spans.jsonl` and a CSV log to
   `data/raw/spans/telemetry.csv`. Both paths can be changed with environment
   variables (see `.env.example`).
-- **Smoke test:** 5 checks pass. A 6th check shows the open span-parenting defect
-  as TODO (see known issue 5).
+- **Smoke test** (as of Phase 1–3): 5 checks passed, plus a 6th marked TODO for the span-parenting defect. Since 3.5A: 10 checks, all passing.
 
 ### Phase 2: experiment runner (`experiments/experiment_runner/`)
 
@@ -44,7 +46,7 @@ Labels used in this file:
 - Per-request results, run summaries, and **run-level** span correlation: counts of
   expected, missing and duplicate spans per run ID.
 - Safety limits on load.
-- **12 unit tests pass** (the original 9, plus 3 path tests).
+- **12 unit tests pass** (the original 9, plus 3 path tests); 14 since 3.5A (traceparent and request-level correlation).
 
 ### Phase 3: telemetry analysis (`pipeline/telemetry_analysis/`)
 
@@ -60,7 +62,52 @@ Labels used in this file:
   - feature and metadata separation,
   - the serialization guard,
   - a proxy-leakage audit (`leakage_audit.py`).
-- **12 unit tests pass** (the original 4, plus 5 leakage tests and 3 path tests).
+- **12 unit tests pass** (the original 4, plus 5 leakage tests and 3 path tests); 14 since 3.5A (request-level join).
+
+### Phase 0 and 3.5A (implemented 10 November 2026)
+
+**Phase 0: housekeeping**
+
+- `docs/02-development-setup.md`: Ubuntu, WSL2 and Git Bash setup, legacy data, CI.
+- `scripts/env.sh` builds `PYTHONPATH` with Windows paths and `;` under Git Bash, and
+  picks a working Python 3.10+ as `$ABR_PYTHON`. The scripts use `$ABR_PYTHON`.
+- `.gitattributes` keeps `*.sh`, `SHA256SUMS` and `*.tsv` at LF. CRLF copies broke
+  `sha256sum -c` and bash outside Git Bash.
+- `target-api/package.json`: name `target-api`, `main` points to `src/server.js`, and
+  `npm test` runs `node --test`. `node --test test/` fails on Node 22+.
+- CI: `.github/workflows/test.yml` runs `scripts/test-all.sh` on Ubuntu 22.04,
+  Node 20, Python 3.10.
+
+**Phase 3.5A: telemetry fixes**
+
+1. **Span parenting fixed.** Cause: `@opentelemetry/instrumentation-express`
+   deliberately restores each layer's parent span when a middleware calls `next()`,
+   discarding a context set inside that middleware. The experiment span is now
+   started in the `http.createServer` callback, before Express. All Express spans
+   are its descendants. The `todo` mark is removed and the test passes.
+2. **Per-request correlation.** The runner sends a W3C `traceparent` per request and
+   records `trace_id` and `client_span_id`. `summary.json` reports
+   `telemetry_correlation.request_level`. The analyzer writes
+   `request_records.jsonl` and `request_join_summary.json`.
+3. **Scenario label removed from telemetry.** It is no longer sent as a header or
+   recorded in spans or the CSV. Tests check this. Spans now carry
+   `experiment.telemetry_schema = "2"`.
+4. **Per-run span files**: `data/raw/spans/runs/<run-id>.jsonl`. The run ID is copied
+   onto every span of a request by `RunIdSpanProcessor`.
+5. **Runtime metrics collected**: `data/raw/runtime/runtime-metrics.jsonl`, sampled
+   every second. It records event-loop delay, ELU, GC pauses, process CPU, heap, RSS,
+   in-flight requests and the active run IDs.
+6. **Windows-safe shutdown**: the server also shuts down on an IPC `"shutdown"`
+   message. Without it, the smoke test could not flush spans on Windows.
+
+**Verification status**
+
+- Target API: **10/10 tests pass** (Windows, Node 24.15).
+- Not yet run, because no Python was available on the development machine:
+  - the runner and analyzer suites (expected: 14 and 14),
+  - `verify-legacy.sh` (the analyzer is designed to keep the legacy output
+    byte-identical; this must be confirmed),
+  - a live experiment run.
 
 ### Historical data (frozen)
 
@@ -101,32 +148,23 @@ that bottleneck detection works.**
      not why it was slow.
 4. **No healthy-vs-faulty comparison of the same API.** Each endpoint has one fixed
    behaviour.
-5. **Span-parenting defect (open).**
-   - The experiment span is meant to be the parent of the Express handler spans.
-     In recorded data it never has a child.
-   - The misleading code comment was corrected on 10 Nov. `TELEMETRY.md` now
-     documents the defect, and a `todo` test reports it on every test run.
-   - The fix is the first item of Phase 3.5A.
-6. **Correlation is per run, not per request.** The runner does not send a W3C
-   `traceparent` header, so client records can be matched to spans only by
-   counting per run ID. Per-request correlation is planned for Phase 3.5A.
+5. **Span-parenting defect: fixed in 3.5A** for new data. In the legacy data the
+   experiment span never has a child; that data is unchanged.
+6. **Correlation per run only: fixed in 3.5A** for new data (W3C `traceparent`). The
+   legacy data can still only be matched per run.
 7. **Queueing is hidden.** The runner waits for free workers instead of keeping
    to a timetable (closed-loop), so delays caused by load do not show up in the
    latency figures.
-8. **Runtime metrics are exported but never collected.** Event-loop delay and GC
-   metrics are exported, but nothing stores them.
-9. **Mixed span file.** Two span record formats share the legacy span file.
+8. **Runtime metrics never collected: fixed in 3.5A.** They are stored in
+   `data/raw/runtime/runtime-metrics.jsonl`.
+9. **Mixed span file.** Two span record formats share the legacy span file. New
+   data also gets clean per-run span files (3.5A).
 10. **Seven CSV rows have no span** in the legacy data.
 11. **No real database.** `/api/query-sim` filters an in-memory array. It is not a
     database experiment.
 
 ## Proposed (planned, not built)
 
-- **Phase 3.5A**:
-  - span-parenting fix,
-  - W3C `traceparent` propagation and exact per-request correlation, with tests,
-  - per-run span files,
-  - runtime metric collection.
 - **Phase 3.5B**: open-loop workload generation that records the intended send
   time, the actual send time and the delay between them; real concurrency;
   client calibration.

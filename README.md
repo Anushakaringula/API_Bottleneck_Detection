@@ -12,7 +12,7 @@ is not, the system should say "insufficient evidence" instead of guessing.
 | Step | What | Location | Status |
 |---|---|---|---|
 | 1 | API workload generation | `experiments/experiment_runner/` | Built (closed-loop; open-loop in 3.5B) |
-| 2 | OpenTelemetry instrumentation and telemetry collection | `target-api/` (emits), runner (run-level correlation) | Built |
+| 2 | OpenTelemetry instrumentation and telemetry collection | `target-api/` (emits), runner and analyzer (per-request correlation by trace ID) | Built (3.5A telemetry fixes implemented) |
 | 3 | Experiment execution and data collection | `experiments/` → `data/raw/` | Built |
 | 4 | Telemetry processing and feature engineering | `pipeline/telemetry_analysis/` → `data/processed/` | Built |
 | 5 | Detection (abnormal vs own healthy baseline) and diagnosis (likely bottleneck type, with evidence) | `pipeline/detection/`, `pipeline/diagnosis/` | Planned (Phases 4–5) |
@@ -38,11 +38,12 @@ docs/              overview, architecture, how to run, roadmap
 
 ## Quick start
 
-Requires Node.js 20 and Python 3.10 on Ubuntu. No other installs are needed for
+Requires Node.js 20 and Python 3.10 on Ubuntu (Windows: see [docs/02-development-setup.md](docs/02-development-setup.md)). No other installs are needed for
 the current phases.
 
 ```sh
 cd ~/api-bottleneck-research
+(cd target-api && npm ci)       # once: install the locked dependencies
 cp .env.example .env            # optional; defaults work without it
 source scripts/env.sh           # loads .env, sets PYTHONPATH
 

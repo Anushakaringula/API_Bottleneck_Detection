@@ -22,6 +22,7 @@ from experiment_runner.runner import (
 class WorkloadHandler(http.server.BaseHTTPRequestHandler):
     active = 0
     max_active = 0
+    seen_headers = []
     lock = threading.Lock()
 
     def do_GET(self):
@@ -32,6 +33,7 @@ class WorkloadHandler(http.server.BaseHTTPRequestHandler):
 
     def _respond(self):
         with self.lock:
+            type(self).seen_headers.append({key.lower(): value for key, value in self.headers.items()})
             type(self).active += 1
             type(self).max_active = max(type(self).max_active, type(self).active)
         try:
@@ -214,6 +216,44 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result["missing_spans"], 2)
         self.assertEqual(result["duplicate_spans"], 1)
         self.assertEqual(result["correlation_status"], "partial")
+
+    def test_requests_carry_traceparent_and_never_the_scenario_label(self):
+        WorkloadHandler.seen_headers = []
+        config = self.make_config(request_count=3, concurrency=1, headers={"traceparent": "00-" + "f" * 32 + "-" + "f" * 16 + "-01"})
+        _, run_dir = self.run_config(config)
+        rows = [json.loads(line) for line in (run_dir / "requests.jsonl").read_text().splitlines()]
+        headers = WorkloadHandler.seen_headers
+        self.assertEqual(len(headers), 3)
+        sent = {h["traceparent"].split("-")[1]: h["traceparent"].split("-")[2] for h in headers}
+        for row in rows:
+            self.assertRegex(row["trace_id"], r"^[0-9a-f]{32}$")
+            self.assertRegex(row["client_span_id"], r"^[0-9a-f]{16}$")
+            self.assertEqual(sent[row["trace_id"]], row["client_span_id"])
+        self.assertEqual(len({row["trace_id"] for row in rows}), 3, "one trace per request")
+        self.assertNotIn("f" * 32, sent, "a configured traceparent header is replaced")
+        for h in headers:
+            self.assertNotIn("x-experiment-scenario", h)
+            self.assertNotIn("test-ground-truth", json.dumps(h))
+            self.assertIn("x-experiment-run-id", h)
+
+    def test_span_correlation_matches_each_request_by_trace_id(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "spans.jsonl"
+            def span(span_id, trace_id, run="run-1"):
+                return {"span_name": "experiment.http.request", "span_id": span_id, "trace_id": trace_id, "attributes": {"experiment.run_id": run}}
+            rows = [span("s1", "a" * 32), span("s2", "b" * 32), span("s3", "b" * 32), span("s4", "d" * 32), span("s5", "a" * 32, run="other")]
+            path.write_text("\n".join(json.dumps(row) for row in rows) + "\n")
+            partial = span_correlation(path, "run-1", expected_spans=3, wait_seconds=0, trace_ids=["a" * 32, "b" * 32, "c" * 32])
+            path.write_text(json.dumps(span("s1", "a" * 32)) + "\n" + json.dumps(span("s2", "b" * 32)) + "\n")
+            complete = span_correlation(path, "run-1", expected_spans=2, wait_seconds=0, trace_ids=["a" * 32, "b" * 32])
+        level = partial["request_level"]
+        self.assertEqual(level["requests_matched_to_one_span"], 1)
+        self.assertEqual(level["requests_with_multiple_spans"], 1)
+        self.assertEqual(level["requests_without_span"], 1)
+        self.assertEqual(level["spans_without_client_request"], 1)
+        self.assertEqual(partial["correlation_status"], "partial")
+        self.assertEqual(complete["request_level"]["requests_matched_to_one_span"], 2)
+        self.assertEqual(complete["correlation_status"], "complete")
 
     def test_hard_limits_are_validated(self):
         with self.assertRaises(ValueError):

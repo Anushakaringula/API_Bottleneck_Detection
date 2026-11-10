@@ -1,13 +1,14 @@
 # 4. Roadmap
 
 Each phase ends at a **gate**: a check that must pass, and be reviewed by the team,
-before the next phase starts. Nothing below Phase 3 has been built yet.
+before the next phase starts. Nothing below Phase 3.5A has been built yet.
 
 | Phase | Goal | Gate | Status |
 |---|---|---|---|
 | 1–3 | Instrumented API, workload runner, telemetry analyzer | Tests pass | Completed |
-| Repo reorganization | Folder structure organised by workflow role, without breaking existing code | All existing tests and checks still pass | Done 10 Nov 2026 (gates G0–G6 passed); not yet committed |
-| 3.5A Telemetry fixes | Span-parenting fix; per-request trace IDs (W3C `traceparent`) and exact client-to-span matching, with tests; per-run span files; runtime metrics | 100% of requests matched to their spans; no lost spans; parenting test no longer marked `todo` | Proposed |
+| Repo reorganization | Folder structure organised by workflow role, without breaking existing code | All existing tests and checks still pass | Done 10 Nov 2026 (gates G0–G6 passed); committed in `911af77` |
+| 0 Housekeeping | Cross-platform setup (Windows/WSL2), LF line endings for scripts and checksums, CI, stale docs fixed | `test-all.sh` passes on every team machine and in CI | Implemented 10 Nov 2026; to be verified |
+| 3.5A Telemetry fixes | Span-parenting fix; per-request trace IDs (W3C `traceparent`) and exact client-to-span matching, with tests; per-run span files; runtime metrics | 100% of requests matched to their spans; no lost spans; parenting test no longer marked `todo` | Implemented 10 Nov 2026; tests pass on Windows (Node); Python suites and a live run to be verified on the laptop |
 | 3.5B Workload generation | Open-loop timetable; intended vs actual send time; real concurrency; client calibration | Client keeps to the timetable at every planned rate | Proposed |
 | 3.5C Reference API | Healthy, faulty and remediated versions; PostgreSQL; Redis; each fault in at least two operations | Every fault is confirmed active when switched on; no labels leak into telemetry | Proposed |
 | 3.5D Experiments | Pilot campaign, then repeated randomized campaign with healthy-vs-healthy runs and a held-out session | Protocol approved by Prof. Sagar; data-quality report clean | Proposed |

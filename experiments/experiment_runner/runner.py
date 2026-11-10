@@ -194,6 +194,14 @@ def endpoint_for(config: dict[str, Any]) -> tuple[str, str]:
     return config["target_url"].rstrip("/") + route, label
 
 
+def new_trace_context() -> tuple[str, str]:
+    """Random W3C trace ID (32 hex) and parent span ID (16 hex); all-zero IDs are invalid."""
+    while True:
+        trace_id, span_id = os.urandom(16).hex(), os.urandom(8).hex()
+        if trace_id != "0" * 32 and span_id != "0" * 16:
+            return trace_id, span_id
+
+
 def _request_body(config: dict[str, Any]) -> bytes | None:
     body = config["request_body"]
     if body is None:
@@ -210,16 +218,17 @@ def _perform_request(
     body: bytes | None,
     timeout: float,
     run_id: str,
-    scenario_label: str,
     phase: str,
     request_index: int,
     scheduled_at: str,
 ) -> dict[str, Any]:
     started = time.perf_counter()
     start_timestamp = utc_now()
-    request_headers = dict(headers)
+    trace_id, client_span_id = new_trace_context()
+    # The scenario label is ground truth and is never sent to the system under test.
+    request_headers = {key: value for key, value in headers.items() if key.lower() != "traceparent"}
     request_headers["X-Experiment-Run-Id"] = run_id
-    request_headers["X-Experiment-Scenario"] = scenario_label
+    request_headers["traceparent"] = f"00-{trace_id}-{client_span_id}-01"
     request = urllib.request.Request(url, data=body, headers=request_headers, method=method)
     status_code: int | None = None
     response_bytes = 0
@@ -251,6 +260,8 @@ def _perform_request(
     return {
         "request_index": request_index,
         "phase": phase,
+        "trace_id": trace_id,
+        "client_span_id": client_span_id,
         "scheduled_at": scheduled_at,
         "started_at": start_timestamp,
         "completed_at": utc_now(),
@@ -279,7 +290,6 @@ def run_phase(
     url: str,
     config: dict[str, Any],
     run_id: str,
-    scenario_label: str,
     phase: str,
     start_index: int,
     request_count: int | None,
@@ -318,7 +328,6 @@ def run_phase(
                 request_body,
                 config["timeout_seconds"],
                 run_id,
-                scenario_label,
                 phase,
                 index,
                 scheduled_at,
@@ -366,7 +375,13 @@ def _append_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
             handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
 
 
-def span_correlation(span_file: Path, run_id: str, expected_spans: int, wait_seconds: float) -> dict[str, Any]:
+def span_correlation(span_file: Path, run_id: str, expected_spans: int, wait_seconds: float,
+                     trace_ids: list[str] | None = None) -> dict[str, Any]:
+    """Run-level span counts, plus exact per-request matching when trace IDs are given.
+
+    Each request's trace ID was sent as a W3C traceparent, so its experiment span is
+    the one with that trace ID and this run ID.
+    """
     deadline = time.monotonic() + wait_seconds
     matches: list[dict[str, Any]] = []
     malformed_lines = 0
@@ -397,7 +412,7 @@ def span_correlation(span_file: Path, run_id: str, expected_spans: int, wait_sec
     extra_unique = max(unique_observed - expected_spans, 0)
     duplicates = duplicate_records + extra_unique
     missing = max(expected_spans - unique_observed, 0)
-    return {
+    result = {
         "span_file": str(span_file),
         "expected_spans": expected_spans,
         "observed_spans": len(matches),
@@ -406,8 +421,27 @@ def span_correlation(span_file: Path, run_id: str, expected_spans: int, wait_sec
         "duplicate_spans": duplicates,
         "malformed_lines_ignored": malformed_lines,
         "correlation_status": "complete" if missing == 0 and duplicates == 0 else "partial",
-        "correlation_note": "Counts are joined by experiment run ID; Phase 1 does not expose a per-request ID to the client.",
+        "correlation_note": "Counts are joined by experiment run ID.",
     }
+    if trace_ids is None:
+        return result
+    spans_per_trace = Counter()
+    for span in {span.get("span_id"): span for span in matches if span.get("span_id")}.values():
+        spans_per_trace[span.get("trace_id")] += 1
+    requested = Counter(trace_ids)
+    matched = sum(1 for trace_id in requested if spans_per_trace.get(trace_id) == 1)
+    result["request_level"] = {
+        "client_requests": len(trace_ids),
+        "duplicate_client_trace_ids": sum(count - 1 for count in requested.values() if count > 1),
+        "requests_matched_to_one_span": matched,
+        "requests_without_span": sum(1 for trace_id in requested if trace_id not in spans_per_trace),
+        "requests_with_multiple_spans": sum(1 for trace_id in requested if spans_per_trace.get(trace_id, 0) > 1),
+        "spans_without_client_request": sum(count for trace_id, count in spans_per_trace.items() if trace_id not in requested),
+    }
+    exact = matched == len(trace_ids) and not result["request_level"]["spans_without_client_request"] and not result["request_level"]["duplicate_client_trace_ids"]
+    result["correlation_status"] = "complete" if exact and duplicate_records == 0 else "partial"
+    result["correlation_note"] = "Each request is joined to its experiment span by W3C trace ID (traceparent sent by the runner) and run ID."
+    return result
 
 
 def _counts(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -487,7 +521,6 @@ def execute_experiment(
                 url=endpoint,
                 config=config,
                 run_id=experiment_id,
-                scenario_label=scenario_label,
                 phase="warmup",
                 start_index=0,
                 request_count=config["warmup_requests"],
@@ -500,7 +533,6 @@ def execute_experiment(
             url=endpoint,
             config=config,
             run_id=experiment_id,
-            scenario_label=scenario_label,
             phase="measured",
             start_index=len(all_records),
             request_count=request_count,
@@ -516,7 +548,8 @@ def execute_experiment(
     measured_elapsed = measured_result.elapsed_seconds if measured_result else 0.0
     expected_spans = len(all_records)
     workload_ended_at = utc_now()
-    correlation = span_correlation(span_file, experiment_id, expected_spans, config["span_wait_seconds"])
+    correlation = span_correlation(span_file, experiment_id, expected_spans, config["span_wait_seconds"],
+                                   trace_ids=[record["trace_id"] for record in all_records])
     artifacts_finalized_at = utc_now()
     configuration["ended_at"] = workload_ended_at
     configuration["artifacts_finalized_at"] = artifacts_finalized_at

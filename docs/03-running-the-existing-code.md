@@ -1,8 +1,8 @@
 # 3. Running the existing code
 
-Requirements: Node.js 20, Python 3.10, and the target API's npm packages (already
-installed in `target-api/node_modules`). The Python code uses only the standard
-library.
+Requirements: Node.js 20, Python 3.10, and the target API's npm packages
+(`cd target-api && npm ci`). The Python code uses only the standard library.
+Setup on Ubuntu or Windows: [02-development-setup.md](02-development-setup.md).
 
 Load the environment once per terminal, from the repository root:
 
@@ -27,8 +27,11 @@ npm start
 - API: `http://localhost:3000` (endpoints `/api/normal`, `/api/cpu`,
   `/api/payload`, `/api/query-sim`, `/health`)
 - Prometheus metrics: `http://localhost:9464/metrics`
-- Environment variables: `PORT`, `METRICS_PORT`, `EXPERIMENT_RUN_ID`, and the
-  `ABR_*` data paths (see `.env.example`).
+- Environment variables: `PORT`, `METRICS_PORT`, `EXPERIMENT_RUN_ID`, the
+  `ABR_*` data paths and `ABR_RUNTIME_SAMPLE_MS` (see `.env.example`).
+- Writes spans (`data/raw/spans/otel-spans.jsonl` and per-run copies in
+  `data/raw/spans/runs/`), a request CSV, and runtime samples
+  (`data/raw/runtime/runtime-metrics.jsonl`). See `target-api/TELEMETRY.md`.
 - Stop it with Ctrl+C. The server flushes its spans on shutdown.
 
 ## 2. Run an experiment
@@ -49,7 +52,9 @@ python3 -m experiment_runner.runner \
   `query-sim`, not `query`.
 - Output goes to `data/raw/experiments/<experiment-id>/` and contains
   `configuration.json`, `requests.jsonl` and `summary.json`.
-- Span correlation in `summary.json` is **per run** (by run ID), not per request.
+- Each request carries a W3C `traceparent`; `requests.jsonl` records its
+  `trace_id`. Span correlation in `summary.json` is reported per run and **per
+  request** (`telemetry_correlation.request_level`).
 - See `experiments/experiment_runner/README.md` for all options and safety limits.
 
 ## 3. Analyze the experiments
@@ -68,6 +73,8 @@ The analyzer writes a new folder `data/processed/<analysis-id>/` containing:
 | `telemetry_observations.jsonl` | Span counts and process-level resource observations |
 | `data_quality.jsonl` | Problems found in the data |
 | `manifest.json` | Input file hashes and versions |
+| `request_records.jsonl` | Each client request joined to its server span by trace ID (not predictors) |
+| `request_join_summary.json` | Per-run and total request-to-span match rates |
 
 Raw files are only read, never changed. See
 `pipeline/telemetry_analysis/README.md` for details.
@@ -79,13 +86,13 @@ scripts/test-all.sh          # every test suite; nothing is written under data/
 scripts/verify-legacy.sh     # historical checksums + byte-for-byte reproduction of the 9 Nov analysis
 ```
 
-Expected results as of 10 Nov 2026:
+Expected results after Phase 3.5A:
 
 | Suite | Result |
 |---|---|
-| Target API | 5 tests pass, plus 1 TODO: the open span-parenting defect, reported but not failing |
-| Experiment runner | 12 tests pass |
-| Telemetry analysis | 12 tests pass |
+| Target API | 10 tests pass, no TODO (the span-parenting defect is fixed) |
+| Experiment runner | 14 tests pass |
+| Telemetry analysis | 14 tests pass |
 | `verify-legacy.sh` | Prints two proxy-leakage warnings (`p95_latency_ms`, `p99_latency_ms`), which are expected for the legacy data |
 
 ## Where things are

@@ -65,24 +65,34 @@ rate exceeds available capacity and never issues catch-up bursts after a slow
 request. Set `request_rate_per_second` to `null` to pace only by the concurrency
 limit, or set `request_interval_seconds` instead of a target rate.
 
-The runner uses `X-Experiment-Run-Id` and `X-Experiment-Scenario` for every
-warm-up and measured request in that run. The scenario label is experiment
-ground truth only. It appears in configuration and summary metadata and is
-sent to Phase 1 telemetry; it is deliberately omitted from per-request
-measurement records and must be excluded from future diagnosis model features.
+The runner sends `X-Experiment-Run-Id` and a W3C `traceparent` header on every
+warm-up and measured request in that run. Each request gets a fresh random trace
+ID and client span ID, recorded as `trace_id` and `client_span_id` in
+`requests.jsonl`; a `traceparent` given in the configured `headers` is replaced.
+The scenario label is experiment ground truth only. It appears in configuration
+and summary metadata, is **not sent** to the system under test (since Phase
+3.5A), is omitted from per-request measurement records, and must be excluded from
+diagnosis model features.
 
 Warm-up request results remain in `requests.jsonl` and in the warm-up count
 section, but they are excluded from measured success/error totals, latency
 percentiles, and throughput. OpenTelemetry expected-span counts include both
 phases. A connection failure is still an attempted request and is included in
 the expected count; as it may never reach the API, it can cause correlation to
-be reported as partial. Span matching is by run ID and dedicated span name.
-Measured latency and throughput include failed attempts because they are part
-of the observed workload; a connection failure has no HTTP status code and is
-reported separately in the status-count map.
-Phase 1 does not return a trace ID to the client, so request-to-span matching is
-not one-to-one; the summary reports experiment-level expected, observed,
-missing, and duplicate counts instead.
+be reported as partial. Measured latency and throughput include failed attempts
+because they are part of the observed workload; a connection failure has no HTTP
+status code and is reported separately in the status-count map.
+
+`summary.json` → `telemetry_correlation` reports two levels:
+
+- run level: expected, observed, missing and duplicate `experiment.http.request`
+  spans carrying the run ID;
+- `request_level`: each request matched to exactly one experiment span by its
+  trace ID (`requests_matched_to_one_span`, `requests_without_span`,
+  `requests_with_multiple_spans`, `spans_without_client_request`).
+
+`correlation_status` is `complete` only when every request matched exactly one
+span and no unrequested or duplicate spans were found.
 
 The experiment ID directory must not already exist. `configuration.json` is
 written at start and finalized with the end time and actual execution details.
