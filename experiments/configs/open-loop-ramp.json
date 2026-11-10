@@ -1,0 +1,18 @@
+{
+  "target_url": "http://127.0.0.1:3000",
+  "scenario": "normal",
+  "method": "GET",
+  "load_model": "open",
+  "arrival_process": "constant",
+  "stages": [
+    { "duration_seconds": 60, "rate_per_second_start": 5, "rate_per_second_end": 50 }
+  ],
+  "warmup_requests": 10,
+  "concurrency": 100,
+  "timeout_seconds": 10,
+  "random_seed": 20261110,
+  "span_wait_seconds": 8,
+  "metadata": {
+    "purpose": "ramp: arrival rate rises linearly from 5 to 50 rps over 60 s, to find where latency starts to climb"
+  }
+}

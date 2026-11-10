@@ -16,7 +16,8 @@ const endpoints = ["/health", "/api/normal", "/api/cpu", "/api/payload", "/api/q
 const runId = `smoke-${randomUUID()}`;
 // The client chooses each request's trace ID and sends it as a W3C traceparent.
 const clientTraces = Object.fromEntries(endpoints.map((endpoint) => [endpoint, { traceId: randomBytes(16).toString("hex"), parentId: randomBytes(8).toString("hex") }]));
-const state = { statuses: {}, metricsStatus: null, metricsBody: "", spans: [], runSpans: [], runtime: [], csv: "" };
+const calibRunId = `smoke-calib-${randomUUID()}`;
+const state = { statuses: {}, metricsStatus: null, metricsBody: "", spans: [], runSpans: [], runtime: [], csv: "", calibration: {} };
 let tempDir;
 
 function freePort() {
@@ -61,6 +62,7 @@ before(async () => {
     ABR_TELEMETRY_CSV: "",
     ABR_RUNTIME_FILE: "",
     ABR_RUNTIME_SAMPLE_MS: "200",
+    ABR_CALIBRATION: "1",
   };
   // The IPC channel gives a graceful shutdown on every platform (no SIGTERM handler on Windows).
   const child = spawn(process.execPath, ["--import", "./instrumentation.mjs", "./src/server.js"], { cwd: appDir, env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
@@ -83,6 +85,17 @@ before(async () => {
       await response.arrayBuffer();
       state.statuses[endpoint] = response.status;
     }
+    // Calibration endpoints (separate run ID so the checks above stay per-endpoint).
+    const calib = { headers: { "X-Experiment-Run-Id": calibRunId } };
+    const sleepStart = performance.now();
+    const sleeps = await Promise.all(Array.from({ length: 5 }, () => fetch(`${base}/__calib/sleep?ms=300`, calib).then(async (r) => { await r.arrayBuffer(); return r.status; })));
+    state.calibration.sleepWallMs = performance.now() - sleepStart;
+    state.calibration.sleepStatuses = sleeps;
+    const noop = await fetch(`${base}/__calib/noop`, calib);
+    await noop.arrayBuffer();
+    const cpu = await fetch(`${base}/__calib/cpu?ms=120`, calib);
+    await cpu.arrayBuffer();
+    state.calibration.otherStatuses = [noop.status, cpu.status];
     await new Promise((resolve) => setTimeout(resolve, 450));
     const metrics = await fetch(`http://127.0.0.1:${metricsPort}/metrics`);
     state.metricsStatus = metrics.status;
@@ -186,6 +199,18 @@ test("runtime metrics are sampled and name the active run", () => {
     }
   }
   assert.ok(state.runtime.some((sample) => sample.run_ids.includes(runId)), "a sample lists the run ID");
+});
+
+test("calibration endpoints: sleep is non-blocking, cpu holds the server for the requested time", () => {
+  assert.deepEqual(state.calibration.sleepStatuses, [200, 200, 200, 200, 200]);
+  assert.deepEqual(state.calibration.otherStatuses, [200, 200]);
+  // Five concurrent 300 ms sleeps finish together, not one after another (1500 ms).
+  assert.ok(state.calibration.sleepWallMs < 1000, `5 concurrent sleeps took ${state.calibration.sleepWallMs} ms`);
+  assert.ok(state.runtime.some((s) => s.run_ids.includes(calibRunId) && s.requests_in_flight_max >= 5), "runtime sampler saw 5 requests in flight");
+  const calibSpans = state.spans.filter((s) => s.span_name === "experiment.http.request" && s.attributes?.["experiment.run_id"] === calibRunId);
+  const cpuSpan = calibSpans.find((s) => s.attributes["url.path"] === "/__calib/cpu");
+  assert.ok(cpuSpan.attributes["experiment.latency_ms"] >= 120, "cpu span covers the busy loop");
+  assert.ok(cpuSpan.attributes["experiment.cpu_user_ms"] + cpuSpan.attributes["experiment.cpu_system_ms"] >= 60, "busy loop shows as process CPU");
 });
 
 test("CSV log has one row per request for this run, with the request's trace ID", () => {

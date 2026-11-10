@@ -57,6 +57,28 @@ python3 -m experiment_runner.runner \
   request** (`telemetry_correlation.request_level`).
 - See `experiments/experiment_runner/README.md` for all options and safety limits.
 
+### Open-loop load and calibration (Phase 3.5B)
+
+Experiments should use the open loop: requests are sent on a timetable, so load
+that the server cannot keep up with shows as latency instead of being hidden.
+
+```sh
+python3 -m experiment_runner.runner --config experiments/configs/open-loop-steady.json
+```
+
+Ramp and burst profiles are in `open-loop-ramp.json` and `open-loop-burst.json`.
+
+Before collecting data on a machine, calibrate the client. Restart the API with
+`ABR_CALIBRATION=1 npm start`, then run:
+
+```sh
+python3 -m experiment_runner.calibrate --rates 5,10,20,50,100
+cat data/results/calibration/*/report.md
+```
+
+The report states the highest rate at which the client keeps to its timetable
+(send lag p99 ≤ 5 ms, no failures, rate within 2 %).
+
 ## 3. Analyze the experiments
 
 ```sh
@@ -86,12 +108,12 @@ scripts/test-all.sh          # every test suite; nothing is written under data/
 scripts/verify-legacy.sh     # historical checksums + byte-for-byte reproduction of the 9 Nov analysis
 ```
 
-Expected results after Phase 3.5A:
+Expected results after Phase 3.5B:
 
 | Suite | Result |
 |---|---|
-| Target API | 10 tests pass, no TODO (the span-parenting defect is fixed) |
-| Experiment runner | 14 tests pass |
+| Target API | 11 tests pass, no TODO (the span-parenting defect is fixed) |
+| Experiment runner | 22 tests pass |
 | Telemetry analysis | 14 tests pass |
 | `verify-legacy.sh` | Prints two proxy-leakage warnings (`p95_latency_ms`, `p99_latency_ms`), which are expected for the legacy data |
 

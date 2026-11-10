@@ -20,7 +20,10 @@ Labels used in this file:
   detection (Phase 4).
 - **Phase 0 (housekeeping) and Phase 3.5A (telemetry fixes) are implemented**
   (10 Nov 2026, not yet committed). See [Phase 0 and 3.5A](#phase-0-and-35a-implemented-10-november-2026)
-  for what still has to be verified. Phases 3.5B–3.5D are not started.
+  for what still has to be verified. Phase 0 and 3.5A are committed on `develop`.
+- **Phase 3.5B (open-loop workload generation) is implemented** (10 Nov 2026). See
+  [Phase 3.5B](#phase-35b-implemented-10-november-2026). Phases 3.5C–3.5D are not
+  started.
 
 ## Completed
 
@@ -109,6 +112,62 @@ Labels used in this file:
     byte-identical; this must be confirmed),
   - a live experiment run.
 
+### Phase 3.5B (implemented 10 November 2026)
+
+1. **Open-loop scheduler** (`load_model: "open"`). Requests are released at
+   timetable slots, whether or not earlier requests have finished.
+   - Arrivals: `constant` or `poisson`, reproducible from `random_seed` (always
+     saved).
+   - The closed loop stays the default and is unchanged.
+2. **Intended vs actual send time.** Each request records
+   `intended_send_offset_ms`, `sent_offset_ms`, `send_lag_ms` and
+   `latency_from_intended_ms`. The summary adds lag and latency distributions and
+   the achieved send rate.
+3. **Real concurrency.** In the open loop, `concurrency` is the number of workers.
+   Caps raised: 200 workers, 200 rps, 50,000 requests, 900 s.
+4. **Workload profiles.** Rate `stages` (steady, linear ramp, pause) and
+   `request_variants` (weighted query-string variants per request). Example
+   configs: `open-loop-steady.json`, `open-loop-ramp.json`, `open-loop-burst.json`.
+5. **Client calibration.**
+   - The target API has `/__calib/noop`, `/__calib/sleep` and `/__calib/cpu`
+     (only with `ABR_CALIBRATION=1`).
+   - `python3 -m experiment_runner.calibrate` writes
+     `data/results/calibration/<id>/report.md`, with send lag and achieved rate
+     per rate and the highest rate the client sustains.
+
+**Verification status**
+
+- Target API: **11/11 tests pass** (Windows, Node 24.15). The calibration test
+  shows 5 concurrent 300 ms sleeps finish together and the runtime sampler sees
+  them in flight.
+- All suites pass on Windows (Python 3.12.10, Node 24.15): **target API 11, runner 22,
+  analysis 14** (`scripts/test-all.sh`). This also confirms the Phase 0/3.5A Python
+  code. Two original `test_paths.py` tests were fixed for Windows paths.
+- **Calibration on the Windows development PC (10 Nov 2026,
+  `data/results/calibration/20261110T223824-36389f56/`): gate passed.**
+  - All 10 runs pass: noop and 50 ms sleep at 5, 10, 20, 50 and 100 rps, with at
+    least 500 requests per run.
+  - Send lag p99 0.5–3.9 ms, achieved rate within 0.03 % of target, 0 failures.
+  - The sleep runs reached 9 requests in flight. Highest sustained rate: **100 rps**
+    (the top of the tested range).
+- Observations from that calibration:
+  - Isolated send-lag spikes of 18–28 ms occur on Windows (lag max). A first run
+    with only 75 requests at 5 rps failed because of one such spike, hence
+    `--min-requests 500`.
+  - Client-observed latency for a no-op is 5–15 ms at p50 and about 28 ms at p99
+    on this PC (Python `urllib` opens a new connection per request, plus Windows
+    timer granularity). This floor is the same for every condition, so
+    baseline-relative detection is unaffected, but it must be re-measured on the
+    experiment machine.
+- **To do:** repeat the calibration on the machine that will collect the main
+  dataset, if that is not this PC.
+
+**Finding (10 Nov 2026).** With the current synchronous endpoints, at most one
+request is ever in flight on the server, even at client concurrency 10. Load
+queues in the socket backlog and appears as event-loop delay. Real server-side
+concurrency needs asynchronous work: database and cache calls in 3.5C, or
+`/__calib/sleep`.
+
 ### Historical data (frozen)
 
 - Raw: `data/raw/legacy-2026-11-09/`. Analysis: `data/processed/legacy/`.
@@ -152,9 +211,8 @@ that bottleneck detection works.**
    experiment span never has a child; that data is unchanged.
 6. **Correlation per run only: fixed in 3.5A** for new data (W3C `traceparent`). The
    legacy data can still only be matched per run.
-7. **Queueing is hidden.** The runner waits for free workers instead of keeping
-   to a timetable (closed-loop), so delays caused by load do not show up in the
-   latency figures.
+7. **Queueing hidden by the closed loop: fixed in 3.5B.** The open loop keeps to a
+   timetable and records send lag. The legacy data was collected closed-loop.
 8. **Runtime metrics never collected: fixed in 3.5A.** They are stored in
    `data/raw/runtime/runtime-metrics.jsonl`.
 9. **Mixed span file.** Two span record formats share the legacy span file. New
@@ -165,9 +223,6 @@ that bottleneck detection works.**
 
 ## Proposed (planned, not built)
 
-- **Phase 3.5B**: open-loop workload generation that records the intended send
-  time, the actual send time and the delay between them; real concurrency;
-  client calibration.
 - **Phase 3.5C**: a reference API with healthy, faulty and remediated versions;
   PostgreSQL (run as a user-owned cluster, no sudo needed); Redis through
   `node-redis`.
@@ -179,7 +234,7 @@ that bottleneck detection works.**
 
 ## Unverified assumptions
 
-- The Python runner can send the planned request rates accurately.
+- The Python runner can send the planned request rates accurately. (Confirmed up to 100 rps on the Windows PC on 10 Nov 2026 with `experiment_runner.calibrate`; repeat on the experiment machine.)
 - No spans are lost at the highest planned load.
 - Each injected fault produces a measurable slowdown at the chosen severities.
 - Laptop noise is small enough for useful detection.

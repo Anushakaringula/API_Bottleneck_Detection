@@ -198,6 +198,23 @@ app.get("/api/query-sim", (req, res) => {
   res.json({ message: "Query simulation completed", count: result.length });
 });
 
+// Calibration operations with known cost, for the workload client (Phase 3.5B) and
+// for checking telemetry against known values. Off unless ABR_CALIBRATION=1.
+if (process.env.ABR_CALIBRATION === "1") {
+  const boundedMs = (value) => Math.min(Math.max(Number(value) || 0, 0), 10000);
+  app.get("/__calib/noop", (req, res) => res.json({ ok: true }));
+  // Non-blocking wait: many of these can be in flight at once.
+  app.get("/__calib/sleep", (req, res) => {
+    setTimeout(() => res.json({ ok: true }), boundedMs(req.query.ms));
+  });
+  // Blocking busy loop: holds the event loop for the given time.
+  app.get("/__calib/cpu", (req, res) => {
+    const until = performance.now() + boundedMs(req.query.ms);
+    while (performance.now() < until);
+    res.json({ ok: true });
+  });
+}
+
 app.get("/health", (req, res) => res.json({ status: "running" }));
 
 app.use((error, req, res, next) => {

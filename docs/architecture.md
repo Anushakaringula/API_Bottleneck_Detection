@@ -77,9 +77,15 @@ docs/                          documentation
 
 ## How a request flows through the system (today)
 
-1. **Schedule.** `experiment_runner` reads a config from `experiments/configs/`,
-   creates a run ID, and sends warm-up and then measured requests at the
-   configured rate and concurrency.
+1. **Schedule.** `experiment_runner` reads a config from `experiments/configs/`
+   and creates a run ID. It then sends warm-up and measured requests:
+   - closed loop: at the configured rate, limited by concurrency;
+   - open loop (3.5B): on a seeded timetable (constant or Poisson, optionally
+     with rate stages), whether or not earlier requests have finished.
+
+   Each request records its intended and actual send time.
+   `experiment_runner.calibrate` checks beforehand that the client keeps to the
+   timetable.
 2. **Send.** Each HTTP request carries `X-Experiment-Run-Id` and a W3C
    `traceparent` with a fresh trace ID, which the runner records. The scenario
    label is never sent.

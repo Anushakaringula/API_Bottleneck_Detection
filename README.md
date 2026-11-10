@@ -11,7 +11,7 @@ is not, the system should say "insufficient evidence" instead of guessing.
 
 | Step | What | Location | Status |
 |---|---|---|---|
-| 1 | API workload generation | `experiments/experiment_runner/` | Built (closed-loop; open-loop in 3.5B) |
+| 1 | API workload generation | `experiments/experiment_runner/` | Built (closed and open loop, rate profiles, calibration: 3.5B) |
 | 2 | OpenTelemetry instrumentation and telemetry collection | `target-api/` (emits), runner and analyzer (per-request correlation by trace ID) | Built (3.5A telemetry fixes implemented) |
 | 3 | Experiment execution and data collection | `experiments/` → `data/raw/` | Built |
 | 4 | Telemetry processing and feature engineering | `pipeline/telemetry_analysis/` → `data/processed/` | Built |

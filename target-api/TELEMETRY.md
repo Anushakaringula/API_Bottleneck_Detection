@@ -69,6 +69,19 @@ Prometheus labels use method, matched route (falling back to path) and status
 code. For production systems, avoid unbounded route values by ensuring routes are
 parameterized.
 
+## Calibration endpoints
+
+With `ABR_CALIBRATION=1` the server also serves operations of known cost. They are
+off by default.
+
+| Endpoint | Cost | Used for |
+|---|---|---|
+| `GET /__calib/noop` | none | client overhead (`experiment_runner.calibrate`) |
+| `GET /__calib/sleep?ms=N` | non-blocking wait of N ms (max 10,000) | real concurrency: many can be in flight at once |
+| `GET /__calib/cpu?ms=N` | busy loop holding the event loop for N ms | checking CPU and latency telemetry against a known value |
+
+They are instrumented like every other route.
+
 ## Shutdown
 
 `SIGINT`/`SIGTERM` (Ctrl+C) close the server, then flush the CSV queue, the

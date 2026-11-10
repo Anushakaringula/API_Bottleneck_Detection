@@ -15,6 +15,8 @@ Folders are created by the code that first writes to them.
 | `raw/spans/runs/<run-id>.jsonl` *(from 3.5A)* | Target API | Later stages | Per-run copy of the spans carrying that run ID. Append-only. |
 | `raw/runtime/runtime-metrics.jsonl` *(from 3.5A)* | Target API | Later stages (telemetry level L3) | Process/runtime samples per time window (event-loop delay, GC, CPU, heap, RSS), each listing the active run IDs. Append-only. |
 | `raw/experiments/<run-id>/` | Experiment runner | Analyzer | One folder per run. Never edit. |
+| `raw/calibration/<calibration-id>/` *(from 3.5B)* | `experiment_runner.calibrate` | Calibration report | Raw runs of one client calibration. Never edit. |
+| `results/calibration/<calibration-id>/` *(from 3.5B)* | `experiment_runner.calibrate` | Team, protocol | `report.md` / `report.json`: send lag and achieved rate per operation and rate; the highest rate the client sustains |
 | `processed/<analysis-id>/` | `pipeline/telemetry_analysis` | Later pipeline stages, dashboard | Each output has a manifest of input hashes. Features (`run_features.jsonl`) are kept apart from metadata and labels (`run_metadata.jsonl`). From 3.5A also `request_records.jsonl` and `request_join_summary.json` (request-to-span join; not predictors). |
 | `labels/` *(from 3.5D)* | Campaign tool | Evaluation, and ML training for training-fold runs only, through one label-access module | Ground truth only. Never read at prediction time. |
 | `features/` *(from analyzer v2)* | `pipeline/telemetry_analysis` | Detection, diagnosis | Allowlisted predictor fields only |

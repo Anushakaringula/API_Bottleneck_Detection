@@ -39,8 +39,10 @@ class PathDefaultTests(unittest.TestCase):
 
     def test_data_dir_override(self):
         got = self.parsed({"ABR_DATA_DIR": "/tmp/abr-test-data"})
-        self.assertEqual(got["experiments_dir"], Path("/tmp/abr-test-data/raw/experiments"))
-        self.assertEqual(got["output_root"], Path("/tmp/abr-test-data/processed"))
+        # The data dir is resolved (on Windows "/tmp/..." gets a drive letter).
+        data = Path("/tmp/abr-test-data").resolve()
+        self.assertEqual(got["experiments_dir"], data / "raw" / "experiments")
+        self.assertEqual(got["output_root"], data / "processed")
 
     def test_specific_overrides_win(self):
         got = self.parsed({"ABR_DATA_DIR": "/tmp/a", "ABR_EXPERIMENTS_DIR": "/tmp/b", "ABR_SPAN_FILE": "/tmp/c.jsonl", "ABR_ANALYSIS_DIR": "/tmp/d"})
