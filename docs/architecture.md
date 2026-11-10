@@ -18,7 +18,9 @@ the stage before it and writes its own.
 target-api/                    system under test (workflow step 2: emits telemetry)
   src/server.js                Express app + experiment-span entry point (before Express)
   src/routes/domain.js         domain API: users, products, orders, search, reports, dashboard (3.5C-2)
-  src/lab/variants.js          healthy / faulty / remediated implementation per operation (ABR_VARIANTS)
+  src/lab/variants.js          healthy / faulty / fixed implementation per operation (ABR_VARIANTS)
+  src/lab/faults.js            fault building blocks: index drop/recreate, CPU work, broken cache key (3.5C-3)
+  scripts/fault-checks.mjs     gate: every fault active when on, gone when fixed (3.5C-3)
   src/db.js                    PostgreSQL pool + Redis client; lab-profile guard
   db/                          schema.sql, seed.sql (deterministic), constraints.sql (named indexes)
   Dockerfile                   target-API image for the lab network (Node 20)
@@ -42,7 +44,6 @@ docs/                          documentation
 
 | Path | Phase | Purpose |
 |---|---|---|
-| `target-api/src/lab/faults/` | 3.5C-3 | Faulty and remediated implementations |
 | `experiments/configs/campaigns/` | 3.5D | Campaign definitions |
 | `experiments/protocol.md` | 3.5D | Frozen experiment protocol |
 | `pipeline/detection/` | 4 | Detection |

@@ -47,6 +47,10 @@ scripts/lab-api.sh up            # target API on http://127.0.0.1:3000 (domain A
 scripts/lab-api.sh down          # after the run (flushes telemetry)
 ```
 
+Inject a fault by starting the API with a variant (see `target-api/README.md`), for
+example `ABR_VARIANTS='{"orders.list":"noindex"}' scripts/lab-api.sh restart`. Check that
+every fault works with `cd target-api && npm run lab:fault-checks` (about 4 min).
+
 ## 2. Run an experiment
 
 In a second terminal (after `source scripts/env.sh`):

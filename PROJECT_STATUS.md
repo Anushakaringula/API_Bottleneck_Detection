@@ -25,9 +25,11 @@ Labels used in this file:
   [Phase 3.5B](#phase-35b-implemented-10-november-2026).
 - **Phase 3.5C-1 (local experiment lab) is committed** (`8af1f81`); the whole project
   uses the local lab for experiments. See [Phase 3.5C-1](#phase-35c-1-local-experiment-lab-implemented-10-november-2026).
-- **Phase 3.5C-2 (domain API, schema and seed, target API in the lab network) is implemented**
+- **Phase 3.5C-2 (domain API, schema and seed, target API in the lab network) is committed**
   (10 Nov 2026). See [Phase 3.5C-2](#phase-35c-2-domain-api-database-and-target-api-in-the-lab-implemented-10-november-2026).
-  3.5C-3 (faults) and 3.5D are not
+- **Phase 3.5C-3 (injected faults and fixes) is implemented** (11 Nov 2026); fault-activation
+  gate passed. See [Phase 3.5C-3](#phase-35c-3-injected-faults-and-fixes-implemented-11-november-2026).
+  3.5D (experiment campaign) is not
   started.
 
 ## Completed
@@ -272,6 +274,59 @@ hop lies only between client and server and is the same for every condition.
   `ORDER BY`: 0.09 ms.
 - `POST /api/orders` stamps `now()`, which would have shifted report windows mid-run.
   Reports now use the fixed reference time 2026-11-01.
+
+### Phase 3.5C-3: injected faults and fixes (implemented 11 November 2026)
+
+- **Five fault classes, each in two operations, each with a `-fixed` variant**
+  (`src/routes/domain.js`, `src/lab/faults.js`):
+
+  | Fault (class) | Operations |
+  |---|---|
+  | `noindex` (DB_BOTTLENECK) | orders.list, search |
+  | `nplus1` (N_PLUS_ONE) | users.list, users.get |
+  | `payload` (LARGE_PAYLOAD) | products.list, search |
+  | `cache` (CACHE_OPPORTUNITY) | products.get, reports |
+  | `cpu` (CPU_BOTTLENECK) | products.get, dashboard |
+
+  - Severities: N+1 rows, payload rows, CPU work.
+  - Queueing stays a run setting (`PG_POOL_MAX`).
+- **Variant startup steps:** database faults drop or recreate their index before the
+  first request.
+- **Change to the healthy `users.get`:** it now returns item counts per order (JOIN), so
+  its N+1 fix returns the healthy response exactly.
+- **Gate passed:** `npm run lab:fault-checks` (large seed,
+  `data/results/fault-checks/2026-11-10T18-39-58-859Z/`).
+  - All 10 fault checks and all 3 severity ladders pass. The mechanism is present when
+    faulty, gone when fixed, and the effect grows with severity.
+  - Fixed variants return byte-identical responses to their faulty variants where
+    required.
+  - Server time, faulty vs fixed:
+
+    | Fault / operation | Faulty | Fixed |
+    |---|---|---|
+    | nplus1 / users.list | 25.2 ms | 4.0 ms |
+    | noindex / orders.list | 53.3 ms | 6.1 ms |
+    | payload / products.list | 46.6 ms | 3.0 ms (3.09 MB vs 1.7 kB) |
+    | cache / reports | 791.4 ms | 2.5 ms |
+    | cpu / products.get | 24.6 ms | 2.6 ms |
+
+  - **Weak effects, kept on purpose:** the products.get cache fault (5.3 vs 2.5 ms, a
+    cheap query) and the users.get N+1 fault (23.4 vs 15.9 ms). They are realistic hard
+    cases for detection.
+- **Variants in the Docker API verified:** `noindex` removed the index (count 1 → 0); a
+  bad variant stops the container with a visible reason; the reset restores the index.
+- `scripts/test-all.sh` 16 (+5 skipped) / 22 / 14; `npm run test:lab` 5/5.
+
+**Fixed during verification:**
+
+- The CPU fault's default severity of 20 added only about 4 ms on this PC, below the
+  check's 10 ms threshold. It was recalibrated to 100 (+21–22 ms).
+- In Docker, `console.error` before `process.exit` lost the "Refusing to start" message,
+  because stderr is an asynchronous pipe there. Refusals are now written synchronously.
+
+**Telemetry note for later phases:** on Windows, `experiment.cpu_*_ms` comes in steps of
+about 15.6 ms (values 0/8/16/47 ms), the Windows timer granularity. It is finer inside the
+Linux container. Process CPU stays a coarse signal (see TELEMETRY.md).
 
 ### Historical data (frozen)
 

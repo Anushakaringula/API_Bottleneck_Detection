@@ -1,7 +1,7 @@
 # 4. Roadmap
 
 Each phase ends at a **gate**: a check that must pass, and be reviewed by the team,
-before the next phase starts. Nothing below Phase 3.5B has been built yet.
+before the next phase starts. Nothing below Phase 3.5C has been built yet.
 
 | Phase | Goal | Gate | Status |
 |---|---|---|---|
@@ -10,7 +10,7 @@ before the next phase starts. Nothing below Phase 3.5B has been built yet.
 | 0 Housekeeping | Cross-platform setup (Windows/WSL2), LF line endings for scripts and checksums, CI, stale docs fixed | `test-all.sh` passes on every team machine and in CI | Implemented 10 Nov 2026; `test-all.sh` passes on the Windows PC |
 | 3.5A Telemetry fixes | Span-parenting fix; per-request trace IDs (W3C `traceparent`) and exact client-to-span matching, with tests; per-run span files; runtime metrics | 100% of requests matched to their spans; no lost spans; parenting test no longer marked `todo` | Implemented 10 Nov 2026; all suites pass on the Windows PC; legacy verification pending (data not on this PC) |
 | 3.5B Workload generation | Open-loop timetable; intended vs actual send time; real concurrency; client calibration | Client keeps to the timetable at every planned rate | Implemented 10 Nov 2026; gate passed on the Windows PC (calibration up to 100 rps); repeat on the experiment machine if different |
-| 3.5C Reference API | Healthy, faulty and remediated versions; PostgreSQL; Redis; each fault in at least two operations | Every fault is confirmed active when switched on; no labels leak into telemetry | 3.5C-1 (local lab) committed; 3.5C-2 (domain API, deterministic seed up to 1M orders, target API in the lab network) implemented 10 Nov 2026, lab tests pass; 3.5C-3 (faults) proposed |
+| 3.5C Reference API | Healthy, faulty and remediated versions; PostgreSQL; Redis; each fault in at least two operations | Every fault is confirmed active when switched on; no labels leak into telemetry | 3.5C-1 and 3.5C-2 committed; 3.5C-3 (5 fault classes × 2 operations, fixed variants, severities) implemented 11 Nov 2026, fault-activation gate passed (10/10 checks, 3/3 ladders) |
 | 3.5D Experiments | Pilot campaign, then repeated randomized campaign with healthy-vs-healthy runs and a held-out session | Protocol approved by Prof. Sagar; data-quality report clean | Proposed |
 | 4 Detection | Normal / anomalous / inconclusive verdicts, each with evidence; thresholds derived from healthy runs | False-alarm and detection rates measured on held-out data | Proposed |
 | 5 Diagnosis | Rules first, then Random Forest and XGBoost; four-level telemetry study (RQ3); abstention ("not sure") analysis | All methods evaluated on identical runs and splits | Proposed |

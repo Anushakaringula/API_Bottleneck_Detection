@@ -6,7 +6,7 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { context, SpanKind, SpanStatusCode, trace, metrics } = require("@opentelemetry/api");
 const { startRuntimeMetrics } = require("./runtime-metrics");
-const { checkLabProfile, closeAll } = require("./db");
+const { checkLabProfile, closeAll, database } = require("./db");
 const variants = require("./lab/variants");
 const domainRoutes = require("./routes/domain");
 
@@ -30,6 +30,13 @@ const metricsFile = path.resolve(process.env.ABR_TELEMETRY_CSV || path.join(data
 const runtimeFile = path.resolve(process.env.ABR_RUNTIME_FILE || path.join(dataDirectory, "raw/runtime/runtime-metrics.jsonl"));
 const CSV_HEADER = "timestamp,run_id,trace_id,method,path,latency_ms,cpu_user_ms,cpu_system_ms,heap_delta_mb,response_size_bytes,status_code,complete\n";
 const processRunId = process.env.EXPERIMENT_RUN_ID || randomUUID();
+
+// Startup refusals are written synchronously: console.error on a pipe (e.g. in Docker) is
+// asynchronous, and the message would be lost when the process exits right after it.
+function refuseToStart(message) {
+  fsSync.writeSync(2, `Refusing to start: ${message}
+`);
+}
 let inFlight = 0;
 
 // Raw data is append-only: never append rows of this format to a CSV written with a
@@ -37,7 +44,7 @@ let inFlight = 0;
 try {
   const existingHeader = fsSync.readFileSync(metricsFile, "utf8").split("\n", 1)[0] + "\n";
   if (existingHeader !== CSV_HEADER) {
-    console.error(`Refusing to start: ${metricsFile} has a different column header. Set ABR_TELEMETRY_CSV to a new file.`);
+    refuseToStart(`${metricsFile} has a different column header. Set ABR_TELEMETRY_CSV to a new file.`);
     process.exit(1);
   }
 } catch (error) {
@@ -232,17 +239,21 @@ app.use((error, req, res, next) => {
 });
 
 // Fail fast: a lab run must use the local lab, and a mistyped variant must not silently run
-// the healthy implementation.
-try {
-  checkLabProfile();
-  variants.configure(process.env.ABR_VARIANTS);
-} catch (error) {
-  console.error(`Refusing to start: ${error.message}`);
-  process.exit(1);
-}
-
+// the healthy implementation. Startup steps of the active variants (e.g. a database fault
+// dropping an index) finish before the first request is accepted.
 const server = http.createServer(experimentEntry);
-server.listen(PORT, () => console.log(`Experimental API running at http://localhost:${PORT}; process run ID ${processRunId}`));
+(async () => {
+  try {
+    checkLabProfile();
+    variants.configure(process.env.ABR_VARIANTS);
+    await variants.prepareActive(database());
+  } catch (error) {
+    refuseToStart(error.message);
+    await closeAll();
+    process.exit(1);
+  }
+  server.listen(PORT, () => console.log(`Experimental API running at http://localhost:${PORT}; process run ID ${processRunId}`));
+})();
 
 let shuttingDown = false;
 async function shutdown(signal) {

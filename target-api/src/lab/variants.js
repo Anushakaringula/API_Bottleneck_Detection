@@ -9,12 +9,30 @@
 // orchestrator restarts the server with a new ABR_VARIANTS for every run.
 
 const registry = new Map(); // operation -> Set of variant base names
+const preparations = new Map(); // "operation/variant" -> async (db, variant) => void
 let active = new Map(); // operation -> { name, severity }
 
-function register(operation, variantNames) {
+// `prepare` optionally maps variant names to a startup step (e.g. a database fault drops an
+// index). Steps run once, before the server accepts requests; the lab is reset to the seed
+// before every run, so they never leak into the next run.
+function register(operation, variantNames, prepare = {}) {
   if (registry.has(operation)) throw new Error(`operation ${operation} registered twice`);
   if (!variantNames.includes("healthy")) throw new Error(`operation ${operation} needs a healthy variant`);
   registry.set(operation, new Set(variantNames));
+  for (const [name, step] of Object.entries(prepare)) preparations.set(`${operation}/${name}`, step);
+}
+
+// Runs the startup steps of the active variants. Returns how many ran.
+async function prepareActive(db) {
+  let count = 0;
+  for (const [operation, variant] of active) {
+    const step = preparations.get(`${operation}/${variant.name}`);
+    if (!step) continue;
+    if (!db) throw new Error(`variant of ${operation} needs a database to prepare`);
+    await step(db, variant);
+    count += 1;
+  }
+  return count;
 }
 
 // "nplus1:100" -> { name: "nplus1", severity: 100 }; "healthy" -> { name: "healthy", severity: null }
@@ -52,7 +70,8 @@ function operations() {
 
 function resetForTests() {
   registry.clear();
+  preparations.clear();
   active = new Map();
 }
 
-module.exports = { register, configure, variantFor, parseVariant, operations, resetForTests };
+module.exports = { register, configure, prepareActive, variantFor, parseVariant, operations, resetForTests };

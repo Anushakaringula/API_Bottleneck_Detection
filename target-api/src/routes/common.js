@@ -11,10 +11,18 @@ class HttpError extends Error {
 }
 
 // Registers an operation with its implementations ({ healthy, ...faults }) and returns the
-// Express handler that runs the variant selected at startup. Implementations receive
-// (req, res, { db, variant }) and send the response themselves.
+// Express handler that runs the variant selected at startup. An implementation is either a
+// function (req, res, { db, variant }) that sends the response, or { handle, prepare } where
+// prepare(db, variant) runs once at startup (see lab/variants.js).
 function operation(name, implementations) {
-  variants.register(name, Object.keys(implementations));
+  const handlers = {};
+  const prepare = {};
+  for (const [variant, implementation] of Object.entries(implementations)) {
+    handlers[variant] = typeof implementation === "function" ? implementation : implementation.handle;
+    if (implementation.prepare) prepare[variant] = implementation.prepare;
+  }
+  variants.register(name, Object.keys(handlers), prepare);
+  implementations = handlers;
   return async (req, res, next) => {
     const db = database();
     if (!db) {
