@@ -21,13 +21,15 @@ target-api/                    system under test (workflow step 2: emits telemet
   instrumentation.mjs          OpenTelemetry SDK, Prometheus exporter, JSONL span exporter (+ per-run files)
   test/smoke.test.mjs          endpoints, spans, metrics, traceparent, parenting, no-label, runtime samples
   TELEMETRY.md                 what the API emits, correlation, schema 1 vs 2
+  scripts/lab-probe.mjs        lab gate: database and cache are local and quiet (3.5C-1)
+infrastructure/                local experiment lab: PostgreSQL 16 + Redis 7 (Docker Compose), see its README
 experiments/                   workload generation + experiment execution (steps 1 and 3)
   experiment_runner/           Python package: runner.py, tests/
   configs/                     experiment definitions (example-config.json)
 pipeline/                      investigation system (steps 4–7)
   telemetry_analysis/          step 4: processing, feature engineering, leakage checks
 data/                          data handed between stages (see data/README.md)
-scripts/                       env.sh, test-all.sh, verify-legacy.sh, compare_manifest.py
+scripts/                       env.sh, test-all.sh, verify-legacy.sh, compare_manifest.py, lab-up/down/reset/status.sh
 docs/                          documentation
 ```
 
@@ -37,7 +39,6 @@ docs/                          documentation
 |---|---|---|
 | `target-api/src/lab/` | 3.5C | Healthy, faulty and remediated variants |
 | `target-api/db/` | 3.5C | PostgreSQL schema, seed data, index migrations |
-| `infrastructure/` | 3.5C | User-run PostgreSQL and Redis setup |
 | `experiments/configs/campaigns/` | 3.5D | Campaign definitions |
 | `experiments/protocol.md` | 3.5D | Frozen experiment protocol |
 | `pipeline/detection/` | 4 | Detection |

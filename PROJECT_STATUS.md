@@ -18,11 +18,14 @@ Labels used in this file:
 - An audit found that the data collected so far is **not good enough to evaluate
   bottleneck detection**. The team therefore added a preparation phase (3.5) before
   detection (Phase 4).
-- **Phase 0 (housekeeping) and Phase 3.5A (telemetry fixes) are implemented**
-  (10 Nov 2026, not yet committed). See [Phase 0 and 3.5A](#phase-0-and-35a-implemented-10-november-2026)
-  for what still has to be verified. Phase 0 and 3.5A are committed on `develop`.
-- **Phase 3.5B (open-loop workload generation) is implemented** (10 Nov 2026). See
-  [Phase 3.5B](#phase-35b-implemented-10-november-2026). Phases 3.5C–3.5D are not
+- **Phase 0 (housekeeping) and Phase 3.5A (telemetry fixes) are committed** (`15c1c39`)
+  on `develop`. See [Phase 0 and 3.5A](#phase-0-and-35a-implemented-10-november-2026).
+  Still open: `verify-legacy.sh`, because the legacy data is not on this PC.
+- **Phase 3.5B (open-loop workload generation) is committed** (`60d185a`). See
+  [Phase 3.5B](#phase-35b-implemented-10-november-2026).
+- **Phase 3.5C-1 (local experiment lab) is implemented** (10 Nov 2026); the whole project
+  uses the local lab for experiments. See [Phase 3.5C-1](#phase-35c-1-local-experiment-lab-implemented-10-november-2026).
+  3.5C-2 (domain API, schema, seed) and 3.5C-3 (faults) and 3.5D are not
   started.
 
 ## Completed
@@ -167,6 +170,51 @@ request is ever in flight on the server, even at client concurrency 10. Load
 queues in the socket backlog and appears as event-loop delay. Real server-side
 concurrency needs asynchronous work: database and cache calls in 3.5C, or
 `/__calib/sleep`.
+
+### Phase 3.5C-1: local experiment lab (implemented 10 November 2026)
+
+**Decision (10 Nov 2026):** the whole project uses a local lab for measured experiments,
+with this PC as the experiment machine. The cloud services (Neon, Redis Cloud) stay
+configured in `.env` for application use only. Measured cloud round trips were 113–203 ms
+(Neon) and 317 ms p50 (Redis Cloud).
+
+- **Installed:** WSL2 and Docker Desktop 4.99. `%USERPROFILE%\.wslconfig` gives Docker
+  6 CPUs, 8 GB and 2 GB swap. `pg` and `redis` (node-redis) were added to `target-api`.
+- **`infrastructure/`:** Docker Compose with PostgreSQL 16.15 and Redis 7.4.12, both
+  pinned by digest and bound to 127.0.0.1.
+  - Fixed container limits (PostgreSQL 2 CPU / 2 GB; Redis 1 CPU / 512 MB).
+  - PostgreSQL: `autovacuum` and `jit` off; `pg_stat_statements` and `track_io_timing` on.
+  - Redis: no persistence.
+- **Template databases:** `lab` is recreated from the template `lab_seed`, which accepts
+  no connections.
+- **Scripts:** `scripts/lab-up / lab-down / lab-reset / lab-status / lab-probe.sh`.
+- **Environment profiles:**
+  - `.env.lab` (lab) and `.env` (cloud), both git-ignored; `.env.lab.example` is
+    committed.
+  - `npm run start:lab`; `ABR_ENV_FILE=.env.lab source scripts/env.sh`.
+  - `scripts/env.sh` now parses the env file instead of executing it, and values already
+    set in the environment win over the file (this fixed `.env` blanking `ABR_PYTHON`).
+
+**Verification**
+
+- **Gate passed:** `scripts/lab-probe.sh` (from the lab network, 2,000 samples).
+  PostgreSQL `SELECT 1` p50 0.12 / p99 0.33 ms; Redis `PING` p50 0.12 / p99 0.32 ms;
+  both hosts local.
+- **Reset reproducibility passed:** after changing data and Redis, `lab-reset.sh`
+  restored identical table checksums and an empty cache.
+- **Lab configuration confirmed live:** `autovacuum=off`, `jit=off`,
+  `shared_buffers=512MB`, `pg_stat_statements` loaded; Redis has no persistence and
+  `maxmemory` 256 MB.
+- `scripts/test-all.sh`: 11 / 22 / 14 pass.
+
+**Finding → decision.** From the Windows host shell, Docker Desktop's port forwarding
+adds 0.4–1.2 ms and jitter per call (p99 1.4–3.7 ms instead of 0.33 ms). It would be
+paid by every query, which inflates N+1. Therefore the **target API runs inside the lab
+network in experiments** (to be built in 3.5C-2). The runner stays on the host, so the
+hop lies only between client and server and is the same for every condition.
+
+**Bug fixed along the way:** Redis rejects comments at the end of a line
+(`requirepass labpass  # ...`); `redis.conf` keeps comments on their own lines.
 
 ### Historical data (frozen)
 

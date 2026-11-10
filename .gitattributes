@@ -6,3 +6,7 @@
 *.sh text eol=lf
 SHA256SUMS text eol=lf
 *.tsv text eol=lf
+
+# Mounted into Linux containers (infrastructure/): keep LF so PostgreSQL, Redis and
+# the init scripts read them identically on every host.
+infrastructure/** text eol=lf

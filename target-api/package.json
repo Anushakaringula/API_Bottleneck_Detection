@@ -9,6 +9,8 @@
   "scripts": {
     "start": "node --import ./instrumentation.mjs ./src/server.js",
     "start:env": "node --env-file=../.env --import ./instrumentation.mjs ./src/server.js",
+    "start:lab": "node --env-file=../.env.lab --import ./instrumentation.mjs ./src/server.js",
+    "lab:probe": "node --env-file=../.env.lab scripts/lab-probe.mjs",
     "test": "node --test"
   },
   "keywords": [],
@@ -22,6 +24,8 @@
     "@opentelemetry/sdk-metrics": "^2.12.0",
     "@opentelemetry/sdk-node": "^0.223.0",
     "@opentelemetry/sdk-trace": "^2.12.0",
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "pg": "^8.23.1",
+    "redis": "^6.3.1"
   }
 }

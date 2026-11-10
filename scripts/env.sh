@@ -7,12 +7,29 @@
 # work from any directory. On Ubuntu $ABR_PYTHON is python3.
 ABR_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export ABR_ROOT
-if [ -f "$ABR_ROOT/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$ABR_ROOT/.env"
-  set +a
+# Environment profile: .env (cloud, default) or, for experiments, .env.lab:
+#   ABR_ENV_FILE=.env.lab source scripts/env.sh
+ABR_ENV_FILE="${ABR_ENV_FILE:-.env}"
+case "$ABR_ENV_FILE" in /*|[A-Za-z]:*) ;; *) ABR_ENV_FILE="$ABR_ROOT/$ABR_ENV_FILE" ;; esac
+# The file is parsed, not executed: plain KEY=value lines, optional surrounding quotes.
+# A variable already set (non-empty) in the environment wins over the file, as with
+# Node's --env-file, so e.g. `ABR_PYTHON=... source scripts/env.sh` is respected.
+if [ -f "$ABR_ENV_FILE" ]; then
+  while IFS= read -r abr_line || [ -n "$abr_line" ]; do
+    abr_line="${abr_line%$'\r'}"
+    case "$abr_line" in ''|'#'*) continue ;; esac
+    abr_key="${abr_line%%=*}"
+    [[ "$abr_key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] && [ "$abr_key" != "$abr_line" ] || continue
+    [ -n "${!abr_key:-}" ] && continue
+    abr_value="${abr_line#*=}"
+    if [[ "$abr_value" =~ ^\"(.*)\"$ ]] || [[ "$abr_value" =~ ^\'(.*)\'$ ]]; then abr_value="${BASH_REMATCH[1]}"; fi
+    export "$abr_key=$abr_value"
+  done < "$ABR_ENV_FILE"
+  unset abr_line abr_key abr_value
+elif [ "$ABR_ENV_FILE" != "$ABR_ROOT/.env" ]; then
+  echo "env.sh: $ABR_ENV_FILE not found" >&2
 fi
+export ABR_ENV_FILE
 
 # Native Windows Python (Git Bash) separates PYTHONPATH entries with ';' and needs
 # Windows paths; Linux, macOS and WSL use ':'.

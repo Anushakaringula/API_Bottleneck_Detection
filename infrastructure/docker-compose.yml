@@ -1,0 +1,47 @@
+# Local lab for controlled experiments (Phase 3.5C): PostgreSQL + Redis on this machine.
+# Start/stop/reset with scripts/lab-up.sh, lab-down.sh, lab-reset.sh (see infrastructure/README.md).
+# Ports are published on 127.0.0.1 only. Passwords are local-only lab values, not secrets.
+name: abr-lab
+
+services:
+  postgres:
+    # Pinned to the exact image used for the experiments (tag for reading, digest for identity).
+    image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: lab
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    # Fixed resources, so every run gets the same database machine.
+    cpus: "2"
+    mem_limit: 2g
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4.12@sha256:2e3eb11462c4e3759e6972678dd051d150ff54b1e60714b3c33b701260172a90
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    cpus: "1"
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "labpass", "--no-auth-warning", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

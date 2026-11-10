@@ -69,6 +69,41 @@ Windows notes:
   A clone made before `.gitattributes` existed may still have CRLF copies; see
   "Refreshing line endings" below.
 
+## Experiment lab: Docker (PostgreSQL + Redis)
+
+The whole project uses a **local lab** for every measured experiment (decision of
+10 Nov 2026). Cloud round trips (Neon 113–203 ms, Redis Cloud 317 ms p50) are larger than
+the effects being studied. The project PC is the experiment machine.
+
+One-time install on Windows (PowerShell as Administrator, then restart Windows):
+
+```powershell
+wsl --install --no-distribution
+winget install -e --id Docker.DockerDesktop
+```
+
+After the restart, start Docker Desktop once and accept its terms. WSL2 resources are set
+in `%USERPROFILE%\.wslconfig`: 6 CPUs, 8 GB, 2 GB swap. On Ubuntu, install Docker Engine
+and the compose plugin instead.
+
+```sh
+docker compose version
+cp .env.lab.example .env.lab
+scripts/lab-up.sh && scripts/lab-reset.sh
+scripts/lab-probe.sh                    # must print: gate ... PASS
+```
+
+Details: [infrastructure/README.md](../infrastructure/README.md).
+
+### Environment profiles
+
+| Profile | File | Database / cache | Start the API | Shell |
+|---|---|---|---|---|
+| `lab` | `.env.lab` (from `.env.lab.example`) | local lab, `127.0.0.1` | `npm run start:lab` | `ABR_ENV_FILE=.env.lab source scripts/env.sh` |
+| `cloud` | `.env` | Neon + Redis Cloud | `npm run start:env` | `source scripts/env.sh` |
+
+Both files are git-ignored. The lab probe refuses to run against a non-local host.
+
 ## Environment
 
 `cp .env.example .env` is optional; every value has a default. Load it, set
