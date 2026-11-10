@@ -1,0 +1,28 @@
+# Dependencies and generated files
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Local service data (PostgreSQL / Redis, from Phase 3.5C)
+.lab/
+
+# Research data: kept out of git, protected by backups and checksums.
+# Only documentation and integrity files under data/ are tracked.
+/data/**
+!/data/**/
+!/data/**/README.md
+!/data/**/SHA256SUMS
+!/data/**/PROVENANCE.md
+!/data/**/MIGRATION_INVENTORY.tsv
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.log

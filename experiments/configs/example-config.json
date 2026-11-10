@@ -1,0 +1,20 @@
+{
+  "target_url": "http://127.0.0.1:3000",
+  "scenario": "normal",
+  "method": "GET",
+  "request_count": 20,
+  "duration_seconds": null,
+  "concurrency": 2,
+  "warmup_requests": 2,
+  "request_rate_per_second": 2,
+  "request_interval_seconds": null,
+  "timeout_seconds": 10,
+  "repeats": 1,
+  "repeat_interval_seconds": 0,
+  "span_wait_seconds": 8,
+  "headers": {},
+  "request_body": null,
+  "metadata": {
+    "purpose": "controlled baseline run"
+  }
+}
