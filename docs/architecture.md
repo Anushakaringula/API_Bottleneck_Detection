@@ -17,6 +17,11 @@ the stage before it and writes its own.
 ```
 target-api/                    system under test (workflow step 2: emits telemetry)
   src/server.js                Express app + experiment-span entry point (before Express)
+  src/routes/domain.js         domain API: users, products, orders, search, reports, dashboard (3.5C-2)
+  src/lab/variants.js          healthy / faulty / remediated implementation per operation (ABR_VARIANTS)
+  src/db.js                    PostgreSQL pool + Redis client; lab-profile guard
+  db/                          schema.sql, seed.sql (deterministic), constraints.sql (named indexes)
+  Dockerfile                   target-API image for the lab network (Node 20)
   src/runtime-metrics.js       event-loop delay, GC, CPU, heap samples per time window
   instrumentation.mjs          OpenTelemetry SDK, Prometheus exporter, JSONL span exporter (+ per-run files)
   test/smoke.test.mjs          endpoints, spans, metrics, traceparent, parenting, no-label, runtime samples
@@ -37,8 +42,7 @@ docs/                          documentation
 
 | Path | Phase | Purpose |
 |---|---|---|
-| `target-api/src/lab/` | 3.5C | Healthy, faulty and remediated variants |
-| `target-api/db/` | 3.5C | PostgreSQL schema, seed data, index migrations |
+| `target-api/src/lab/faults/` | 3.5C-3 | Faulty and remediated implementations |
 | `experiments/configs/campaigns/` | 3.5D | Campaign definitions |
 | `experiments/protocol.md` | 3.5D | Frozen experiment protocol |
 | `pipeline/detection/` | 4 | Detection |

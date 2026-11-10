@@ -11,7 +11,8 @@
     "start:env": "node --env-file=../.env --import ./instrumentation.mjs ./src/server.js",
     "start:lab": "node --env-file=../.env.lab --import ./instrumentation.mjs ./src/server.js",
     "lab:probe": "node --env-file=../.env.lab scripts/lab-probe.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "test:lab": "node --env-file=../.env.lab --test test/lab.integration.test.mjs"
   },
   "keywords": [],
   "author": "",

@@ -4,9 +4,9 @@
 # seed has to be rebuilt.
 source "$(dirname "${BASH_SOURCE[0]}")/lab-common.sh"
 if [ "${1:-}" = "--purge" ]; then
-  compose down --volumes
+  compose --profile api down --volumes
   echo "lab stopped; data volume deleted"
 else
-  compose down
+  compose --profile api down
   echo "lab stopped; data volume kept"
 fi

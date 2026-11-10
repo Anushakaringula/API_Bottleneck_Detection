@@ -1,0 +1,6 @@
+node_modules
+test
+db
+*.md
+Dockerfile
+.dockerignore

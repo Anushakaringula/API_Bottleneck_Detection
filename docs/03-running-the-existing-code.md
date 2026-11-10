@@ -34,6 +34,19 @@ npm start
   (`data/raw/runtime/runtime-metrics.jsonl`). See `target-api/TELEMETRY.md`.
 - Stop it with Ctrl+C. The server flushes its spans on shutdown.
 
+### Against the local lab (Phase 3.5C)
+
+Experiments run the target API inside the lab's Docker network, next to PostgreSQL and
+Redis (see `infrastructure/README.md` and `target-api/README.md`):
+
+```sh
+scripts/lab-up.sh                # PostgreSQL 16 + Redis 7
+scripts/lab-seed.sh large        # once: build the seeded template (~35 s)
+scripts/lab-reset.sh             # before every run
+scripts/lab-api.sh up            # target API on http://127.0.0.1:3000 (domain API + experiment endpoints)
+scripts/lab-api.sh down          # after the run (flushes telemetry)
+```
+
 ## 2. Run an experiment
 
 In a second terminal (after `source scripts/env.sh`):
@@ -108,11 +121,11 @@ scripts/test-all.sh          # every test suite; nothing is written under data/
 scripts/verify-legacy.sh     # historical checksums + byte-for-byte reproduction of the 9 Nov analysis
 ```
 
-Expected results after Phase 3.5B:
+Expected results after Phase 3.5C-2:
 
 | Suite | Result |
 |---|---|
-| Target API | 11 tests pass, no TODO (the span-parenting defect is fixed) |
+| Target API | 16 tests pass, 5 skipped (lab integration tests: `ABR_LAB_TESTS=1 npm run test:lab` against a seeded lab, 5 pass) |
 | Experiment runner | 22 tests pass |
 | Telemetry analysis | 14 tests pass |
 | `verify-legacy.sh` | Prints two proxy-leakage warnings (`p95_latency_ms`, `p99_latency_ms`), which are expected for the legacy data |

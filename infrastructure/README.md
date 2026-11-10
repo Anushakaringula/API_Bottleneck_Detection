@@ -47,7 +47,7 @@ changing it, run `scripts/lab-down.sh --purge` and then `scripts/lab-up.sh`.
 |---|---|
 | Fixed container CPU and memory limits | Every run gets the same database machine |
 | `autovacuum = off` | No background vacuum starting in the middle of a run; statistics are fixed after seeding |
-| `jit = off` | JIT compilation adds run-to-run latency variance |
+| `jit = off`, `max_parallel_workers_per_gather = 0` | JIT compilation and parallel workers add run-to-run latency variance (parallel workers compete with concurrent requests for the 2 CPUs) |
 | `pg_stat_statements`, `track_io_timing` | Database-side ground truth (query counts and time, buffer hits vs reads), used to check that injected faults are active. Never a model feature. |
 | Redis without persistence (`save ""`, `appendonly no`) | Every run starts from an empty cache; no disk writes in some runs but not others |
 | Ports bound to `127.0.0.1` | The lab is not reachable from the network |
@@ -70,6 +70,31 @@ lab network** (Phase 3.5C-2). The workload runner stays on the host, so the forw
 lies only between client and server, and it is the same for every condition.
 Reset reproducibility was checked: after changing data and Redis, `lab-reset.sh` restored
 identical table checksums.
+
+## Seed and target API (Phase 3.5C-2)
+
+```sh
+scripts/lab-seed.sh large        # rebuild lab_seed (small | medium | large), then reset; large: ~35 s, 549 MB
+scripts/lab-api.sh up            # target API in the lab network (service "api", profile "api")
+scripts/lab-api.sh down          # stop it (SIGTERM: telemetry is flushed)
+```
+
+- The `api` service runs the target-API image (Node 20) with 2 CPUs and 1 GB, and is
+  published on `127.0.0.1:3000` (metrics on `:9464`).
+- It uses `postgres:5432` and `redis:6379` inside the lab network.
+- Its telemetry is written to the repository's `data/` folder.
+- `ABR_VARIANTS`, `ABR_CALIBRATION`, `PG_POOL_MAX`, `EXPERIMENT_RUN_ID` and
+  `ABR_RUNTIME_SAMPLE_MS` are passed through from the shell.
+
+PostgreSQL query spans measured from 300 identical requests, 801 query spans each
+(10 Nov 2026):
+
+| Target API location | p50 | p95 | p99 |
+|---|---|---|---|
+| In the lab network | 0.47 ms | 1.70 ms | 3.02 ms |
+| On the Windows host | 0.90 ms | 2.45 ms | 3.08 ms |
+
+A reset at large scale (copying the 549 MB template) takes about 3 s.
 
 ## Reset between runs
 

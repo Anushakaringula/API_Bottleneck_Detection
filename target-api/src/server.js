@@ -6,6 +6,9 @@ const path = require("node:path");
 const { randomUUID } = require("node:crypto");
 const { context, SpanKind, SpanStatusCode, trace, metrics } = require("@opentelemetry/api");
 const { startRuntimeMetrics } = require("./runtime-metrics");
+const { checkLabProfile, closeAll } = require("./db");
+const variants = require("./lab/variants");
+const domainRoutes = require("./routes/domain");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -215,13 +218,28 @@ if (process.env.ABR_CALIBRATION === "1") {
   });
 }
 
+// Domain API on PostgreSQL + Redis (Phase 3.5C-2); 503 when no database is configured.
+app.use(domainRoutes);
+
 app.get("/health", (req, res) => res.json({ status: "running" }));
 
 app.use((error, req, res, next) => {
   console.error("Request failed:", error.message);
   if (res.headersSent) return next(error);
-  res.status(error.status || 500).json({ error: error.status && error.status < 500 ? "Invalid request" : "Internal server error" });
+  const status = error.status || 500;
+  // Messages of deliberate client errors (HttpError) are safe to show; others are not.
+  res.status(status).json({ error: status < 500 ? (error.expose ? error.message : "Invalid request") : "Internal server error" });
 });
+
+// Fail fast: a lab run must use the local lab, and a mistyped variant must not silently run
+// the healthy implementation.
+try {
+  checkLabProfile();
+  variants.configure(process.env.ABR_VARIANTS);
+} catch (error) {
+  console.error(`Refusing to start: ${error.message}`);
+  process.exit(1);
+}
 
 const server = http.createServer(experimentEntry);
 server.listen(PORT, () => console.log(`Experimental API running at http://localhost:${PORT}; process run ID ${processRunId}`));
@@ -234,6 +252,7 @@ async function shutdown(signal) {
   server.close(async () => {
     await telemetryWriteQueue;
     await runtime.stop();
+    await closeAll();
     await globalThis.__otelShutdown?.();
     process.exit(0);
   });

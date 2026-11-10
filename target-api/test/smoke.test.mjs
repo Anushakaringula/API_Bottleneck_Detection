@@ -63,6 +63,13 @@ before(async () => {
     ABR_RUNTIME_FILE: "",
     ABR_RUNTIME_SAMPLE_MS: "200",
     ABR_CALIBRATION: "1",
+    // No database or cache: the smoke test must never reach the lab or the cloud
+    // (test-all.sh loads .env, which may hold cloud connection strings).
+    DATABASE_URL: "",
+    DATABASE_URL_UNPOOLED: "",
+    REDIS_URL: "",
+    ABR_ENV_PROFILE: "",
+    ABR_VARIANTS: "",
   };
   // The IPC channel gives a graceful shutdown on every platform (no SIGTERM handler on Windows).
   const child = spawn(process.execPath, ["--import", "./instrumentation.mjs", "./src/server.js"], { cwd: appDir, env, stdio: ["ignore", "pipe", "pipe", "ipc"] });
@@ -96,6 +103,8 @@ before(async () => {
     const cpu = await fetch(`${base}/__calib/cpu?ms=120`, calib);
     await cpu.arrayBuffer();
     state.calibration.otherStatuses = [noop.status, cpu.status];
+    const domain = await fetch(`${base}/api/users`, calib);
+    state.domainWithoutDatabase = { status: domain.status, body: await domain.json() };
     await new Promise((resolve) => setTimeout(resolve, 450));
     const metrics = await fetch(`http://127.0.0.1:${metricsPort}/metrics`);
     state.metricsStatus = metrics.status;
@@ -211,6 +220,11 @@ test("calibration endpoints: sleep is non-blocking, cpu holds the server for the
   const cpuSpan = calibSpans.find((s) => s.attributes["url.path"] === "/__calib/cpu");
   assert.ok(cpuSpan.attributes["experiment.latency_ms"] >= 120, "cpu span covers the busy loop");
   assert.ok(cpuSpan.attributes["experiment.cpu_user_ms"] + cpuSpan.attributes["experiment.cpu_system_ms"] >= 60, "busy loop shows as process CPU");
+});
+
+test("domain endpoints answer 503 when no database is configured", () => {
+  assert.equal(state.domainWithoutDatabase.status, 503);
+  assert.deepEqual(state.domainWithoutDatabase.body, { error: "database not configured" });
 });
 
 test("CSV log has one row per request for this run, with the request's trace ID", () => {

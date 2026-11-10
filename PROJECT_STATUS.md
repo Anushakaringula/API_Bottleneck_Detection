@@ -23,9 +23,11 @@ Labels used in this file:
   Still open: `verify-legacy.sh`, because the legacy data is not on this PC.
 - **Phase 3.5B (open-loop workload generation) is committed** (`60d185a`). See
   [Phase 3.5B](#phase-35b-implemented-10-november-2026).
-- **Phase 3.5C-1 (local experiment lab) is implemented** (10 Nov 2026); the whole project
+- **Phase 3.5C-1 (local experiment lab) is committed** (`8af1f81`); the whole project
   uses the local lab for experiments. See [Phase 3.5C-1](#phase-35c-1-local-experiment-lab-implemented-10-november-2026).
-  3.5C-2 (domain API, schema, seed) and 3.5C-3 (faults) and 3.5D are not
+- **Phase 3.5C-2 (domain API, schema and seed, target API in the lab network) is implemented**
+  (10 Nov 2026). See [Phase 3.5C-2](#phase-35c-2-domain-api-database-and-target-api-in-the-lab-implemented-10-november-2026).
+  3.5C-3 (faults) and 3.5D are not
   started.
 
 ## Completed
@@ -215,6 +217,61 @@ hop lies only between client and server and is the same for every condition.
 
 **Bug fixed along the way:** Redis rejects comments at the end of a line
 (`requirepass labpass  # ...`); `redis.conf` keeps comments on their own lines.
+
+### Phase 3.5C-2: domain API, database and target API in the lab (implemented 10 November 2026)
+
+- **Schema and seed** (`target-api/db/`):
+  - 5 tables (users, categories, products, orders, order_items).
+  - `seed.sql` is deterministic: setseed, single-stream random, no parallel workers,
+    fixed dates.
+  - `constraints.sql` adds foreign keys and 6 named healthy indexes.
+  - `scripts/lab-seed.sh small|medium|large` builds the `lab_seed` template.
+  - Large = 100k users, 50k products, 1M orders, 2,997,667 order items, 549 MB, built in
+    34–37 s.
+- **Domain API** (`src/routes/domain.js`): 9 operations (`users.list/get`,
+  `products.list/get`, `orders.list/create`, `search`, `reports`, `dashboard`) on PostgreSQL
+  (`pg`) and Redis (node-redis, cache-aside). Without a database the domain routes
+  answer 503.
+- **Variant registry** (`src/lab/variants.js`): `ABR_VARIANTS` selects the implementation
+  per operation at startup.
+  - Unknown operations or variants stop the server.
+  - Only `healthy` exists so far; 3.5C-3 adds the faults.
+- **Safety:** under `ABR_ENV_PROFILE=lab` the server refuses a non-local database or
+  cache. The smoke test now clears the database variables, so it can never reach the lab
+  or the cloud.
+- **Target API in the lab network:**
+  - `target-api/Dockerfile` (Node 20, pinned by digest).
+  - Compose service `api` (2 CPUs / 1 GB), managed with `scripts/lab-api.sh up|down|restart|logs`.
+  - Telemetry goes to `data/` through a bind mount and is flushed on `docker stop`.
+- **Lab config:** `max_parallel_workers_per_gather = 0`, because parallel workers on 2 CPUs
+  make query speed depend on concurrent load.
+
+**Verification (10 Nov 2026)**
+
+- `scripts/test-all.sh`: target API 16 pass + 5 skipped; runner 22; analysis 14.
+- `ABR_LAB_TESTS=1 npm run test:lab`, at small and at large scale: **5/5**.
+  - All operations answer with data; 404 and 400 carry their reasons.
+  - PostgreSQL spans sit under the experiment span for all 9 operations.
+  - Redis cache-aside: the first read queries the database, the second makes no database
+    query.
+  - Variant names never reach telemetry.
+- **Seed determinism:** re-seeding gives byte-identical checksums for all 5 data tables.
+- **Healthy query plans at large scale:** all use indexes. A reset takes about 3 s.
+- **API in Docker vs on the host** (300 identical requests, 801 query spans): PostgreSQL
+  span p50 **0.47 vs 0.90 ms**, p95 1.70 vs 2.45 ms. This confirms the 3.5C-1 decision.
+- **Healthy baseline at large scale** (API in Docker, 60 sequential requests per
+  operation):
+  - p50 4.1–5.4 ms for all operations except `orders.create` (7.5 ms) and `dashboard`
+    (12.2 ms).
+  - The only outliers are first, uncached requests: `reports` 1,024 ms, `dashboard` 337 ms.
+
+**Fixed during verification:**
+
+- Search took 42 ms (a sort of 6,310 rows), because a `text_pattern_ops` index supports
+  matching but not ordering. It is now a `(lower(name) COLLATE "C")` index plus a matching
+  `ORDER BY`: 0.09 ms.
+- `POST /api/orders` stamps `now()`, which would have shifted report windows mid-run.
+  Reports now use the fixed reference time 2026-11-01.
 
 ### Historical data (frozen)
 
