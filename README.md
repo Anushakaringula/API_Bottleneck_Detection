@@ -20,7 +20,7 @@ is not, the system should say "insufficient evidence" instead of guessing.
 | 7 | Before-and-after verification | `pipeline/verification/` | Planned (Phase 7) |
 | 8 | Dashboard | `dashboard/` | Planned (Phase 8) |
 
-Planned folders are created only when their code is written. See
+**Progress: [PROGRESS.md](PROGRESS.md).** Planned folders are created only when their code is written. See
 [docs/architecture.md](docs/architecture.md) for the design,
 [PROJECT_STATUS.md](PROJECT_STATUS.md) for what is done and what is known to be
 wrong, and [docs/README.md](docs/README.md) for the full documentation.

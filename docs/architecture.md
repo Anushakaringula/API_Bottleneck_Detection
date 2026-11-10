@@ -32,7 +32,8 @@ target-api/                    system under test (workflow step 2: emits telemet
 infrastructure/                local experiment lab: PostgreSQL 16 + Redis 7 (Docker Compose), see its README
 experiments/                   workload generation + experiment execution (steps 1 and 3)
   experiment_runner/           Python package: runner.py, tests/
-  configs/                     experiment definitions (example-config.json)
+  campaign/                    campaigns (3.5D): plan.py, run.py (orchestrator), lab.py, summarize.py, tests/
+  configs/                     experiment definitions; configs/campaigns/ (smoke.json, pilot.json)
 pipeline/                      investigation system (steps 4–7)
   telemetry_analysis/          step 4: processing, feature engineering, leakage checks
 data/                          data handed between stages (see data/README.md)
@@ -44,7 +45,6 @@ docs/                          documentation
 
 | Path | Phase | Purpose |
 |---|---|---|
-| `experiments/configs/campaigns/` | 3.5D | Campaign definitions |
 | `experiments/protocol.md` | 3.5D | Frozen experiment protocol |
 | `pipeline/detection/` | 4 | Detection |
 | `pipeline/diagnosis/` | 5 | Diagnosis, including `ml/` for Random Forest and XGBoost |

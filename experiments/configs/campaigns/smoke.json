@@ -1,0 +1,23 @@
+{
+  "name": "smoke",
+  "description": "Three short runs to check the campaign pipeline end to end (not research data).",
+  "random_seed": 1,
+  "seed_scale": "large",
+  "workload": {
+    "load_model": "open",
+    "arrival_process": "poisson",
+    "request_rate_per_second": 5,
+    "duration_seconds": 10,
+    "warmup_requests": 10,
+    "concurrency": 50,
+    "timeout_seconds": 30,
+    "span_wait_seconds": 15
+  },
+  "operation_workload": {
+    "reports": { "request_rate_per_second": 0.5, "warmup_requests": 3, "duration_seconds": 60 }
+  },
+  "conditions": [
+    { "operation": "users.list", "variants": ["healthy", "nplus1:20"], "repeats": 1 },
+    { "operation": "reports", "variants": ["cache"], "repeats": 1 }
+  ]
+}

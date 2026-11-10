@@ -249,7 +249,14 @@ def _request_variants(raw: Any) -> list[dict[str, Any]] | None:
         if not isinstance(query, dict) or not all(isinstance(k, str) and isinstance(v, (str, int, float)) and not isinstance(v, bool) for k, v in query.items()):
             raise ValueError(f"request_variants[{index}].query must map names to strings or numbers")
         weight = _number(variant.get("weight", 1), f"request_variants[{index}].weight", 1e-9, 1e9)
-        variants.append({"query": dict(query), "weight": weight})
+        normalized = {"query": dict(query), "weight": weight}
+        # Optional path, replacing the path of target_url (e.g. "/api/users/17").
+        if "path" in variant:
+            path = variant["path"]
+            if not isinstance(path, str) or not path.startswith("/") or len(path) > 2000 or any(c in path for c in "?# " + chr(13) + chr(10)):
+                raise ValueError(f"request_variants[{index}].path must be an absolute path without query or spaces")
+            normalized["path"] = path
+        variants.append(normalized)
     return variants
 
 
@@ -360,7 +367,11 @@ def _choose_variant(config: dict[str, Any], rng: random.Random) -> int | None:
 def _variant_url(url: str, config: dict[str, Any], variant_index: int | None) -> str:
     if variant_index is None:
         return url
-    query = config["request_variants"][variant_index]["query"]
+    variant = config["request_variants"][variant_index]
+    if "path" in variant:
+        parts = urllib.parse.urlsplit(url)
+        url = urllib.parse.urlunsplit((parts.scheme, parts.netloc, variant["path"], "", ""))
+    query = variant["query"]
     if not query:
         return url
     return url + ("&" if "?" in url else "?") + urllib.parse.urlencode(query)

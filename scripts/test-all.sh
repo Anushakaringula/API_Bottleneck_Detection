@@ -12,6 +12,9 @@ echo "== target-api (node --test) =="
 echo "== experiments/experiment_runner =="
 "$ABR_PYTHON" -m unittest discover -s experiments/experiment_runner/tests
 
+echo "== experiments/campaign =="
+"$ABR_PYTHON" -m unittest discover -s experiments/campaign/tests
+
 echo "== pipeline/telemetry_analysis =="
 "$ABR_PYTHON" -m unittest discover -s pipeline/telemetry_analysis/tests
 

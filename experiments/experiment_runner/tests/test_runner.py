@@ -368,6 +368,17 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("/ok?limit=10", WorkloadHandler.seen_paths)
         self.assertIn("/ok?limit=100&fields=id", WorkloadHandler.seen_paths)
 
+    def test_request_variants_can_replace_the_path(self):
+        WorkloadHandler.seen_paths = []
+        variants = [{"path": "/items/1"}, {"path": "/items/2", "query": {"full": 1}}]
+        config = self.make_config(target_url=self.base_url + "/ignored?x=1", request_count=12, concurrency=1, request_variants=variants, random_seed=3)
+        self.run_config(config)
+        self.assertEqual(set(WorkloadHandler.seen_paths), {"/items/1", "/items/2?full=1"})
+        with self.assertRaises(ValueError):
+            self.make_config(request_variants=[{"path": "relative"}])
+        with self.assertRaises(ValueError):
+            self.make_config(request_variants=[{"path": "/a?b=1"}])
+
     def test_closed_loop_records_send_timing(self):
         config = self.make_config(request_count=3, concurrency=1, request_rate_per_second=10)
         summary, run_dir = self.run_config(config)

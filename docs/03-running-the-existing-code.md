@@ -51,6 +51,18 @@ Inject a fault by starting the API with a variant (see `target-api/README.md`), 
 example `ABR_VARIANTS='{"orders.list":"noindex"}' scripts/lab-api.sh restart`. Check that
 every fault works with `cd target-api && npm run lab:fault-checks` (about 4 min).
 
+### Campaigns: many labelled runs (Phase 3.5D)
+
+A campaign runs every planned condition (operation × variant × repeat) in a shuffled,
+reproducible order. Each run resets the lab, starts the API with the variant, measures and
+stops it. Ground truth goes only to `data/labels/` (see `experiments/campaign/README.md`):
+
+```sh
+python -m campaign.run --config experiments/configs/campaigns/pilot.json --dry-run
+python -m campaign.run --config experiments/configs/campaigns/pilot.json    # ~55 min
+python -m campaign.summarize <campaign-id>
+```
+
 ## 2. Run an experiment
 
 In a second terminal (after `source scripts/env.sh`):
@@ -125,12 +137,13 @@ scripts/test-all.sh          # every test suite; nothing is written under data/
 scripts/verify-legacy.sh     # historical checksums + byte-for-byte reproduction of the 9 Nov analysis
 ```
 
-Expected results after Phase 3.5C-2:
+Expected results after Phase 3.5D-1:
 
 | Suite | Result |
 |---|---|
 | Target API | 16 tests pass, 5 skipped (lab integration tests: `ABR_LAB_TESTS=1 npm run test:lab` against a seeded lab, 5 pass) |
-| Experiment runner | 22 tests pass |
+| Experiment runner | 23 tests pass |
+| Campaign | 9 tests pass (fake lab, no Docker) |
 | Telemetry analysis | 14 tests pass |
 | `verify-legacy.sh` | Prints two proxy-leakage warnings (`p95_latency_ms`, `p99_latency_ms`), which are expected for the legacy data |
 

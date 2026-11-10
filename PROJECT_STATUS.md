@@ -1,5 +1,8 @@
 # Project status (10 November 2026)
 
+> **Progress at a glance: [PROGRESS.md](PROGRESS.md)** (single tracker, updated every phase).
+> This file keeps the detailed notes of each phase.
+
 Labels used in this file:
 
 - **Completed**: built, and checked against the code and data.
@@ -29,8 +32,9 @@ Labels used in this file:
   (10 Nov 2026). See [Phase 3.5C-2](#phase-35c-2-domain-api-database-and-target-api-in-the-lab-implemented-10-november-2026).
 - **Phase 3.5C-3 (injected faults and fixes) is implemented** (11 Nov 2026); fault-activation
   gate passed. See [Phase 3.5C-3](#phase-35c-3-injected-faults-and-fixes-implemented-11-november-2026).
-  3.5D (experiment campaign) is not
-  started.
+- **Phase 3.5C-3 is committed** (`7c2f018`). **Phase 3.5D-1 (campaign tool, pilot,
+  protocol draft) is implemented** (11 Nov 2026). See [Phase 3.5D-1](#phase-35d-1-campaign-tool-and-pilot-implemented-11-november-2026).
+  3.5D-2 (main campaign) waits for the protocol approval.
 
 ## Completed
 
@@ -327,6 +331,55 @@ hop lies only between client and server and is the same for every condition.
 **Telemetry note for later phases:** on Windows, `experiment.cpu_*_ms` comes in steps of
 about 15.6 ms (values 0/8/16/47 ms), the Windows timer granularity. It is finer inside the
 Linux container. Process CPU stays a coarse signal (see TELEMETRY.md).
+
+### Phase 3.5D-1: campaign tool and pilot (implemented 11 November 2026)
+
+- **`experiments/campaign/`:**
+  - `plan.py`: config validation, expansion into runs, run order shuffled with the
+    campaign seed, one workload seed per operation, ground-truth labels per variant.
+  - `run.py`: orchestrator. Per run: reset → API in Docker with the variant → open-loop
+    workload → database statistics → API down. It is resumable, stops the API cleanly on
+    Ctrl+C, and checks the seed scale and variant registry before starting.
+  - `lab.py`: lab control. It uses Git Bash explicitly on Windows.
+  - `summarize.py`: healthy noise, effect sizes, telemetry completeness, client- and
+    server-side.
+  - 9 tests with a fake lab and runner.
+- **Runner:** request variants can set the path (`/api/users/17`). 23 tests.
+- **Configs:** `experiments/configs/campaigns/smoke.json` (3 runs) and `pilot.json` (48 runs).
+- **Ground truth** only in `data/labels/<campaign>.jsonl`. Runner artifacts carry no variant
+  (tested).
+
+**Smoke campaign** (`smoke-20261111T003553-c4f896`): 3/3 runs end to end, complete
+correlation. Two problems found and fixed:
+
+- a column name in the database-statistics query;
+- the reports cache fault collapsed at 1 rps (client p50 16.9 s, queries 3.5–15 s
+  overlapping on 2 CPUs). Reports now run at 0.5 rps for 60 s with days ∈ {7, 14, 30}. A
+  check run then gave healthy p50 16 ms and cache 441 ms: a stable slowdown.
+
+**Pilot campaign** (`pilot-20261111T004216-0b0138`, 48 runs, 47.5 min, report in
+`data/results/campaigns/pilot-20261111T004216-0b0138/`):
+
+- 48/48 completed, 0 failed; 7,459/7,459 requests matched to exactly one span; 0 failed
+  requests.
+- **Healthy noise:** server-side run p50 CV 0.2–8.3 %, so 2–3 repeats detect a 20 %
+  slowdown. Client-side CV is 4–24 % (up to 23 repeats), because of the ~15 ms client and
+  forwarding floor.
+- **Faults vs healthy (server run p50):** all 10 fully separated.
+  - Ratios: reports cache ×87.9, products.list payload ×18.7, orders.list noindex ×16.0,
+    products.get cpu ×12.9, search noindex ×11.1, search payload ×9.3, users.list nplus1 ×4.8,
+    dashboard cpu ×3.1, users.get nplus1 ×2.2, products.get cache ×2.0.
+  - Client-side: 9/10; the products.get cache fault was not separated.
+- **Fixed variants back at healthy:** ×0.90 and ×0.99.
+- **Send lag:** worst p99 41.5 ms in run 1 (cold start) and 32.8 ms in run 19; all other
+  runs ≤ 16.7 ms. The protocol therefore adds a discarded warm-up run and an exclusion rule
+  (> 10 ms).
+- The pilot ran with uncommitted code (`git_dirty: true`). That is acceptable for a pilot;
+  the main campaign must start from a committed tree.
+
+**Protocol draft:** `experiments/protocol.md`, waiting for Prof. Sagar's approval. It sets
+main campaign 220 runs (~3.7 h) and held-out 68 runs, severities including weak levels,
+exclusion rules, the analysis plan, and the decisions requested (§9).
 
 ### Historical data (frozen)
 

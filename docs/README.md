@@ -9,6 +9,7 @@ If you are new to the project, read these files in order:
 | File | What it tells you |
 |---|---|
 | [01-project-overview.md](01-project-overview.md) | What problem the project studies, the research questions, and how the finished system is meant to work |
+| [../PROGRESS.md](../PROGRESS.md) | Progress at a glance: phases, gates, key results, decisions, open items |
 | [../PROJECT_STATUS.md](../PROJECT_STATUS.md) | What is built and working, what is known to be wrong, what is planned, and what is still an untested assumption |
 | [architecture.md](architecture.md) | How the repository is organised, how the parts connect, and how a request flows through the system |
 | [02-development-setup.md](02-development-setup.md) | Installing the tools on Ubuntu or Windows (WSL2 / Git Bash), legacy data, CI |
