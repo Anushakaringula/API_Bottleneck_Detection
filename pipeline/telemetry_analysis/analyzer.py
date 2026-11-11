@@ -16,8 +16,11 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .schema import JOIN_KEY_FIELDS, PREDICTOR_FIELDS, SCHEMA_VERSION
+from .schema import JOIN_KEY_FIELDS, PREDICTOR_FIELDS, REQUEST_JOIN_SCHEMA_VERSION, SCHEMA_VERSION
 DATA_DIR = Path(os.environ.get("ABR_DATA_DIR") or Path(__file__).resolve().parents[2] / "data").resolve()
+SPAN_KIND_SERVER = 1
+SPAN_REQUIRED_ATTRIBUTES_V1 = ("experiment.run_id", "experiment.scenario", "http.request.method", "url.path", "experiment.latency_ms", "experiment.response_size_bytes", "http.response.status_code")
+SPAN_REQUIRED_ATTRIBUTES_V2 = ("experiment.run_id", "http.request.method", "url.path", "experiment.latency_ms", "experiment.response_size_bytes", "http.response.status_code")
 
 
 def percentile(values: list[float], q: float) -> float | None:
@@ -87,14 +90,17 @@ def _validate_spans(rows: list[dict[str, Any]], issues: list[dict[str, Any]]) ->
         parent = row.get("parent_span_id")
         if parent is not None and (not isinstance(parent, str) or not re.fullmatch(r"[0-9a-fA-F]{16}", parent)):
             issues.append({"severity": "warning", "code": "invalid_parent_span_id", "record": index})
-        elif parent is not None and (row.get("trace_id"), parent) not in available:
+        elif parent is not None and (row.get("trace_id"), parent) not in available and row.get("span_kind") != SPAN_KIND_SERVER:
+            # A server span's parent is the client's span (W3C traceparent); it is never exported.
             issues.append({"severity": "warning", "code": "parent_span_not_in_input", "record": index, "parent_span_id": parent})
         duration = _number(row.get("duration_ms"))
         if duration is None or duration < 0:
             issues.append({"severity": "warning", "code": "invalid_span_duration", "record": index})
         if row.get("span_name") == "experiment.http.request":
             attrs = row.get("attributes") or {}
-            for key in ("experiment.run_id", "experiment.scenario", "http.request.method", "url.path", "experiment.latency_ms", "experiment.response_size_bytes", "http.response.status_code"):
+            # Telemetry schema 2 (Phase 3.5A) no longer records the scenario label.
+            required = SPAN_REQUIRED_ATTRIBUTES_V2 if attrs.get("experiment.telemetry_schema") == "2" else SPAN_REQUIRED_ATTRIBUTES_V1
+            for key in required:
                 if key not in attrs:
                     issues.append({"severity": "warning", "code": "dedicated_span_attribute_missing", "record": index, "attribute": key})
             for key in ("experiment.latency_ms", "experiment.cpu_user_ms", "experiment.cpu_system_ms", "experiment.heap_delta_mb", "experiment.response_size_bytes"):
@@ -212,6 +218,79 @@ def _run_features(requests: list[dict[str, Any]], config: dict[str, Any], summar
     return feature, meta
 
 
+def _status(value: Any) -> int | None:
+    try:
+        return int(value) if value is not None and not isinstance(value, bool) else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _request_records(requests: list[dict[str, Any]], run_spans: list[dict[str, Any]],
+                     spans_by_trace: dict[str, list[dict[str, Any]]], record_id: str,
+                     run_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Join each client request to its experiment span by W3C trace ID (Phase 3.5A).
+
+    Requests recorded before the runner sent traceparent have no trace ID and are
+    reported as not joinable; nothing is inferred for them.
+    """
+    rows = []
+    client_traces = set()
+    for request in requests:
+        trace_id = request.get("trace_id") if isinstance(request.get("trace_id"), str) and request.get("trace_id") else None
+        row = {
+            "analysis_record_id": record_id,
+            "request_index": request.get("request_index"),
+            "phase": request.get("phase"),
+            "trace_id": trace_id,
+            "client_latency_ms": _number(request.get("latency_ms")),
+            "client_status_code": _status(request.get("status_code")),
+            "client_response_bytes": _number(request.get("response_bytes")),
+            "server_latency_ms": None,
+            "server_status_code": None,
+            "server_response_bytes": None,
+            "client_minus_server_ms": None,
+            "status_agrees": None,
+        }
+        if trace_id is None:
+            row["match_status"] = "no_client_trace_id"
+            rows.append(row)
+            continue
+        client_traces.add(trace_id)
+        unique = list({s.get("span_id"): s for s in spans_by_trace.get(trace_id, []) if s.get("span_id")}.values())
+        if not unique:
+            row["match_status"] = "no_server_span"
+        elif len(unique) > 1:
+            row["match_status"] = "multiple_server_spans"
+        elif str((unique[0].get("attributes") or {}).get("experiment.run_id")) != run_id:
+            row["match_status"] = "run_id_mismatch"
+        else:
+            row["match_status"] = "matched"
+            attrs = unique[0].get("attributes") or {}
+            row["server_latency_ms"] = _number(attrs.get("experiment.latency_ms"))
+            row["server_status_code"] = _status(attrs.get("http.response.status_code"))
+            row["server_response_bytes"] = _number(attrs.get("experiment.response_size_bytes"))
+            if row["server_latency_ms"] is not None and row["client_latency_ms"] is not None:
+                row["client_minus_server_ms"] = row["client_latency_ms"] - row["server_latency_ms"]
+            if row["client_status_code"] is not None and row["server_status_code"] is not None:
+                row["status_agrees"] = row["client_status_code"] == row["server_status_code"]
+        rows.append(row)
+    counts = Counter(row["match_status"] for row in rows)
+    joinable = len(rows) - counts.get("no_client_trace_id", 0)
+    unique_run_spans = {s.get("span_id"): s for s in run_spans if s.get("span_id")}.values()
+    summary = {
+        "analysis_record_id": record_id,
+        "run_id": run_id,
+        "client_requests": len(rows),
+        "client_requests_with_trace_id": joinable,
+        "matched_requests": counts.get("matched", 0),
+        "match_status_counts": dict(sorted(counts.items())),
+        "exact_match_rate": counts.get("matched", 0) / joinable if joinable else None,
+        # Only meaningful when the client recorded trace IDs.
+        "server_spans_without_client_request": sum(s.get("trace_id") not in client_traces for s in unique_run_spans) if joinable else None,
+    }
+    return rows, summary
+
+
 def analyze(experiments_dir: Path, span_file: Path, output_root: Path) -> Path:
     issues: list[dict[str, Any]] = []
     span_rows = _read_jsonl(span_file, issues)
@@ -229,10 +308,15 @@ def analyze(experiments_dir: Path, span_file: Path, output_root: Path) -> Path:
             issues.append({"severity": "warning", "code": "dedicated_span_missing_run_id", "span_id": span.get("span_id")})
         else:
             spans_by_run.setdefault(str(rid), []).append(span)
+    spans_by_trace: dict[str, list[dict[str, Any]]] = {}
+    for span in dedicated:
+        if isinstance(span.get("trace_id"), str):
+            spans_by_trace.setdefault(span["trace_id"], []).append(span)
 
     out_dir = output_root / (dt.datetime.now().strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:8])
     out_dir.mkdir(parents=True, exist_ok=False)
     features, metadata, observations = [], [], []
+    request_rows, join_summaries = [], []
     seen_runs = set()
     for folder in sorted(p for p in experiments_dir.iterdir() if p.is_dir()):
         run_id = folder.name
@@ -298,6 +382,12 @@ def analyze(experiments_dir: Path, span_file: Path, output_root: Path) -> Path:
             issues.append({"severity": "warning", "code": "span_count_discrepancy", "run_id": canonical_id, "request_attempts": attempt_count, "observed_dedicated_spans": len(run_spans), "interpretation": "Unexplained by this analyzer; transport failures may not reach the server, and run-level counts cannot establish request-level matching."})
         if len(run_spans) > attempt_count:
             issues.append({"severity": "warning", "code": "excess_dedicated_spans", "run_id": canonical_id, "request_attempts": attempt_count, "observed_dedicated_spans": len(run_spans)})
+        rows, join_summary = _request_records(requests, run_spans, spans_by_trace, record_id, canonical_id)
+        request_rows.extend(rows)
+        join_summaries.append(join_summary)
+        # Raised only for requests that carry a trace ID, so pre-3.5A data is unaffected.
+        if join_summary["client_requests_with_trace_id"] and (join_summary["matched_requests"] != join_summary["client_requests_with_trace_id"] or join_summary["server_spans_without_client_request"]):
+            issues.append({"severity": "warning", "code": "request_level_correlation_incomplete", "run_id": canonical_id, "match_status_counts": join_summary["match_status_counts"], "server_spans_without_client_request": join_summary["server_spans_without_client_request"]})
 
     for run_id in sorted(set(spans_by_run) - seen_runs):
         issues.append({"severity": "warning", "code": "orphan_span_run", "run_id": run_id, "span_count": len(spans_by_run[run_id])})
@@ -316,6 +406,26 @@ def analyze(experiments_dir: Path, span_file: Path, output_root: Path) -> Path:
         with (out_dir / name).open("w", encoding="utf-8") as stream:
             for row in rows:
                 stream.write(json.dumps(row, sort_keys=True, allow_nan=False) + "\n")
+    # Request-level join (Phase 3.5A). Separate files, not predictors: they hold trace
+    # IDs and are kept out of manifest.json so earlier analyses reproduce exactly.
+    with (out_dir / "request_records.jsonl").open("w", encoding="utf-8") as stream:
+        for row in request_rows:
+            stream.write(json.dumps(row, sort_keys=True, allow_nan=False) + "\n")
+    joinable = sum(s["client_requests_with_trace_id"] for s in join_summaries)
+    matched = sum(s["matched_requests"] for s in join_summaries)
+    join_report = {
+        "request_join_schema_version": REQUEST_JOIN_SCHEMA_VERSION,
+        "join_key": "trace_id (W3C traceparent sent by the runner) plus experiment.run_id",
+        "role": "correlation and data quality only; not model predictors",
+        "totals": {
+            "client_requests": len(request_rows),
+            "client_requests_with_trace_id": joinable,
+            "matched_requests": matched,
+            "exact_match_rate": matched / joinable if joinable else None,
+        },
+        "runs": join_summaries,
+    }
+    (out_dir / "request_join_summary.json").write_text(json.dumps(join_report, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
     source_paths = [span_file] + sorted(experiments_dir.glob("*/configuration.json")) + sorted(experiments_dir.glob("*/requests.jsonl")) + sorted(experiments_dir.glob("*/summary.json"))
     manifest = {
         "schema_version": SCHEMA_VERSION,

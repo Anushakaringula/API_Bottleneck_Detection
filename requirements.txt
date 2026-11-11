@@ -1,0 +1,8 @@
+# Python packages for diagnosis (Phase 5: Random Forest, XGBoost) and verification (Phase 7: statistics).
+# Everything else in the repository uses only the standard library (Python 3.10+).
+# These pins need Python 3.11+ (numpy 2.5); the experiment PC and CI use Python 3.12.
+#   python -m pip install -r requirements.txt
+numpy==2.5.4
+scikit-learn==1.9.1
+scipy==1.18.1
+xgboost==3.4.1

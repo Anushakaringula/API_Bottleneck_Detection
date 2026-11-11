@@ -1,6 +1,9 @@
 """Versioned output fields and model-predictor governance."""
 
 SCHEMA_VERSION = "1.0.0"
+# request_records.jsonl / request_join_summary.json (Phase 3.5A). Versioned apart from
+# SCHEMA_VERSION so the run-level outputs of earlier analyses still reproduce exactly.
+REQUEST_JOIN_SCHEMA_VERSION = "1.0.0"
 
 # analysis_record_id is a join key, never a model predictor.
 JOIN_KEY_FIELDS = {"analysis_record_id"}

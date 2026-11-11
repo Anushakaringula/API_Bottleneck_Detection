@@ -10,9 +10,24 @@ echo "== target-api (node --test) =="
 (cd target-api && npm test --silent)
 
 echo "== experiments/experiment_runner =="
-python3 -m unittest discover -s experiments/experiment_runner/tests
+"$ABR_PYTHON" -m unittest discover -s experiments/experiment_runner/tests
+
+echo "== experiments/campaign =="
+"$ABR_PYTHON" -m unittest discover -s experiments/campaign/tests
+
+echo "== pipeline/features =="
+"$ABR_PYTHON" -m unittest discover -s pipeline/features/tests
+
+echo "== pipeline/detection =="
+"$ABR_PYTHON" -m unittest discover -s pipeline/detection/tests
+
+echo "== pipeline/diagnosis =="
+"$ABR_PYTHON" -m unittest discover -s pipeline/diagnosis/tests
+
+echo "== pipeline/verification =="
+"$ABR_PYTHON" -m unittest discover -s pipeline/verification/tests
 
 echo "== pipeline/telemetry_analysis =="
-python3 -m unittest discover -s pipeline/telemetry_analysis/tests
+"$ABR_PYTHON" -m unittest discover -s pipeline/telemetry_analysis/tests
 
 echo "ALL TEST SUITES PASSED"

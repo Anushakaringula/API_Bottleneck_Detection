@@ -1,0 +1,18 @@
+{
+  "target_url": "http://127.0.0.1:3000",
+  "scenario": "normal",
+  "method": "GET",
+  "load_model": "open",
+  "arrival_process": "poisson",
+  "request_rate_per_second": 20,
+  "request_count": null,
+  "duration_seconds": 60,
+  "warmup_requests": 40,
+  "concurrency": 50,
+  "timeout_seconds": 10,
+  "random_seed": 20261110,
+  "span_wait_seconds": 8,
+  "metadata": {
+    "purpose": "steady open-loop load: Poisson arrivals at 20 rps for 60 s"
+  }
+}

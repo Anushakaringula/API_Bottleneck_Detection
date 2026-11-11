@@ -1,0 +1,20 @@
+{
+  "target_url": "http://127.0.0.1:3000",
+  "scenario": "normal",
+  "method": "GET",
+  "load_model": "open",
+  "arrival_process": "poisson",
+  "stages": [
+    { "duration_seconds": 20, "rate_per_second": 10 },
+    { "duration_seconds": 5, "rate_per_second": 60 },
+    { "duration_seconds": 20, "rate_per_second": 10 }
+  ],
+  "warmup_requests": 20,
+  "concurrency": 100,
+  "timeout_seconds": 10,
+  "random_seed": 20261110,
+  "span_wait_seconds": 8,
+  "metadata": {
+    "purpose": "burst: 10 rps, a 5 s burst at 60 rps, then 10 rps again (queue build-up and recovery)"
+  }
+}

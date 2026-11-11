@@ -1,11 +1,19 @@
 {
-  "name": "backend",
+  "name": "target-api",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node --import ./instrumentation.mjs ./src/server.js",
     "start:env": "node --env-file=../.env --import ./instrumentation.mjs ./src/server.js",
-    "test": "node --test test/"
+    "start:lab": "node --env-file=../.env.lab --import ./instrumentation.mjs ./src/server.js",
+    "lab:probe": "node --env-file=../.env.lab scripts/lab-probe.mjs",
+    "test": "node --test",
+    "test:lab": "node --env-file=../.env.lab --test test/lab.integration.test.mjs",
+    "lab:fault-checks": "node --env-file=../.env.lab scripts/fault-checks.mjs"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +26,8 @@
     "@opentelemetry/sdk-metrics": "^2.12.0",
     "@opentelemetry/sdk-node": "^0.223.0",
     "@opentelemetry/sdk-trace": "^2.12.0",
-    "express": "^5.3.0"
+    "express": "^5.3.0",
+    "pg": "^8.23.1",
+    "redis": "^6.3.1"
   }
 }

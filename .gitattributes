@@ -1,0 +1,12 @@
+# Normalize text files in the repository; check out with the platform default.
+* text=auto
+
+# Files read by bash or sha256sum must keep LF endings on every platform
+# (a CRLF checkout on Windows/WSL breaks `set -euo pipefail` and `sha256sum -c`).
+*.sh text eol=lf
+SHA256SUMS text eol=lf
+*.tsv text eol=lf
+
+# Mounted into Linux containers (infrastructure/): keep LF so PostgreSQL, Redis and
+# the init scripts read them identically on every host.
+infrastructure/** text eol=lf

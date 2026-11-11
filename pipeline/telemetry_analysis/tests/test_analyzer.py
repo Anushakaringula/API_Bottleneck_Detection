@@ -104,5 +104,77 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("throughput_duration_unavailable", codes)
 
 
+    def test_requests_are_joined_to_spans_by_trace_id(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); exp = root / "experiments" / "run-4"; exp.mkdir(parents=True)
+            config = {"experiment_id": "run-4", "execution": {"measured_attempted_requests": 3,
+                       "measured_phase_elapsed_seconds": 1}, "workload_configuration": {}}
+            summary = {"measured": {"total_requests": 3, "phase_elapsed_seconds": 1}, "warmup": {"total_requests": 0}}
+            requests = [
+                {"request_index": 0, "phase": "measured", "trace_id": "a" * 32, "latency_ms": 12.0, "status_code": 200, "outcome": "success", "response_bytes": 50},
+                {"request_index": 1, "phase": "measured", "trace_id": "b" * 32, "latency_ms": 9.0, "status_code": 200, "outcome": "success", "response_bytes": 50},
+                {"request_index": 2, "phase": "measured", "trace_id": "c" * 32, "latency_ms": 7.0, "status_code": None, "outcome": "connection_error"},
+            ]
+            (exp / "configuration.json").write_text(json.dumps(config)); (exp / "summary.json").write_text(json.dumps(summary))
+            (exp / "requests.jsonl").write_text("".join(json.dumps(r) + "\n" for r in requests))
+
+            def experiment_span(trace, span_id, parent, latency):
+                return {"span_name": "experiment.http.request", "trace_id": trace, "span_id": span_id, "parent_span_id": parent,
+                        "span_kind": 0, "duration_ms": latency,
+                        "attributes": {"experiment.telemetry_schema": "2", "experiment.run_id": "run-4", "http.request.method": "GET",
+                                       "url.path": "/x", "experiment.latency_ms": latency, "experiment.response_size_bytes": 50,
+                                       "http.response.status_code": 200}}
+            # Server spans have the client's span as parent, which is never exported.
+            server_a = {"span_name": "GET", "trace_id": "a" * 32, "span_id": "1" * 16, "parent_span_id": "9" * 16, "span_kind": 1, "duration_ms": 11, "attributes": {}}
+            spans = [server_a, experiment_span("a" * 32, "2" * 16, "1" * 16, 10.0), experiment_span("d" * 32, "3" * 16, None, 5.0)]
+            span_file = root / "spans.jsonl"; span_file.write_text("".join(json.dumps(s) + "\n" for s in spans))
+            out = analyze(root / "experiments", span_file, root / "analysis")
+            records = [json.loads(x) for x in (out / "request_records.jsonl").read_text().splitlines()]
+            report = json.loads((out / "request_join_summary.json").read_text())
+            quality = [json.loads(x) for x in (out / "data_quality.jsonl").read_text().splitlines()]
+            manifest = json.loads((out / "manifest.json").read_text())
+
+            by_index = {r["request_index"]: r for r in records}
+            self.assertEqual(by_index[0]["match_status"], "matched")
+            self.assertEqual(by_index[0]["server_latency_ms"], 10.0)
+            self.assertEqual(by_index[0]["client_minus_server_ms"], 2.0)
+            self.assertTrue(by_index[0]["status_agrees"])
+            self.assertEqual(by_index[1]["match_status"], "no_server_span")
+            self.assertEqual(by_index[2]["match_status"], "no_server_span")
+            run = report["runs"][0]
+            self.assertEqual(run["matched_requests"], 1)
+            self.assertEqual(run["server_spans_without_client_request"], 1)
+            self.assertAlmostEqual(report["totals"]["exact_match_rate"], 1 / 3)
+            codes = {q["code"] for q in quality}
+            self.assertIn("request_level_correlation_incomplete", codes)
+            self.assertNotIn("parent_span_not_in_input", codes)
+            self.assertNotIn("dedicated_span_attribute_missing", codes)
+            self.assertNotIn("request_records", json.dumps(manifest))
+            # Request-level rows never reach the predictor file.
+            self.assertNotIn("a" * 32, (out / "run_features.jsonl").read_text())
+
+    def test_pre_traceparent_requests_are_reported_as_not_joinable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); exp = root / "experiments" / "run-5"; exp.mkdir(parents=True)
+            config = {"experiment_id": "run-5", "execution": {}, "workload_configuration": {}}
+            summary = {"measured": {"total_requests": 1}, "warmup": {"total_requests": 0}}
+            (exp / "configuration.json").write_text(json.dumps(config)); (exp / "summary.json").write_text(json.dumps(summary))
+            (exp / "requests.jsonl").write_text(json.dumps({"phase": "measured", "latency_ms": 3, "status_code": 200, "outcome": "success"}) + "\n")
+            span = {"span_name": "experiment.http.request", "trace_id": "e" * 32, "span_id": "4" * 16, "duration_ms": 1,
+                    "attributes": {"experiment.run_id": "run-5", "http.response.status_code": 200}}
+            span_file = root / "spans.jsonl"; span_file.write_text(json.dumps(span) + "\n")
+            out = analyze(root / "experiments", span_file, root / "analysis")
+            record = json.loads((out / "request_records.jsonl").read_text())
+            report = json.loads((out / "request_join_summary.json").read_text())
+            quality = [json.loads(x) for x in (out / "data_quality.jsonl").read_text().splitlines()]
+            self.assertEqual(record["match_status"], "no_client_trace_id")
+            self.assertIsNone(report["totals"]["exact_match_rate"])
+            self.assertIsNone(report["runs"][0]["server_spans_without_client_request"])
+            self.assertNotIn("request_level_correlation_incomplete", {q["code"] for q in quality})
+            # Old-format spans are still checked against the old attribute list, scenario included.
+            missing = {q.get("attribute") for q in quality if q["code"] == "dedicated_span_attribute_missing"}
+            self.assertIn("experiment.scenario", missing)
+
+
 if __name__ == "__main__":
     unittest.main()

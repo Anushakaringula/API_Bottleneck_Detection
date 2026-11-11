@@ -1,8 +1,8 @@
 # 3. Running the existing code
 
-Requirements: Node.js 20, Python 3.10, and the target API's npm packages (already
-installed in `target-api/node_modules`). The Python code uses only the standard
-library.
+Requirements: Node.js 20, Python 3.12 (3.11+, `pip install -r requirements.txt`), and the target API's npm packages
+(`cd target-api && npm ci`). The Python code uses only the standard library.
+Setup on Ubuntu or Windows: [02-development-setup.md](02-development-setup.md).
 
 Load the environment once per terminal, from the repository root:
 
@@ -27,9 +27,41 @@ npm start
 - API: `http://localhost:3000` (endpoints `/api/normal`, `/api/cpu`,
   `/api/payload`, `/api/query-sim`, `/health`)
 - Prometheus metrics: `http://localhost:9464/metrics`
-- Environment variables: `PORT`, `METRICS_PORT`, `EXPERIMENT_RUN_ID`, and the
-  `ABR_*` data paths (see `.env.example`).
+- Environment variables: `PORT`, `METRICS_PORT`, `EXPERIMENT_RUN_ID`, the
+  `ABR_*` data paths and `ABR_RUNTIME_SAMPLE_MS` (see `.env.example`).
+- Writes spans (`data/raw/spans/otel-spans.jsonl` and per-run copies in
+  `data/raw/spans/runs/`), a request CSV, and runtime samples
+  (`data/raw/runtime/runtime-metrics.jsonl`). See `target-api/TELEMETRY.md`.
 - Stop it with Ctrl+C. The server flushes its spans on shutdown.
+
+### Against the local lab (Phase 3.5C)
+
+Experiments run the target API inside the lab's Docker network, next to PostgreSQL and
+Redis (see `infrastructure/README.md` and `target-api/README.md`):
+
+```sh
+scripts/lab-up.sh                # PostgreSQL 16 + Redis 7
+scripts/lab-seed.sh large        # once: build the seeded template (~35 s)
+scripts/lab-reset.sh             # before every run
+scripts/lab-api.sh up            # target API on http://127.0.0.1:3000 (domain API + experiment endpoints)
+scripts/lab-api.sh down          # after the run (flushes telemetry)
+```
+
+Inject a fault by starting the API with a variant (see `target-api/README.md`), for
+example `ABR_VARIANTS='{"orders.list":"noindex"}' scripts/lab-api.sh restart`. Check that
+every fault works with `cd target-api && npm run lab:fault-checks` (about 4 min).
+
+### Campaigns: many labelled runs (Phase 3.5D)
+
+A campaign runs every planned condition (operation × variant × repeat) in a shuffled,
+reproducible order. Each run resets the lab, starts the API with the variant, measures and
+stops it. Ground truth goes only to `data/labels/` (see `experiments/campaign/README.md`):
+
+```sh
+python -m campaign.run --config experiments/configs/campaigns/pilot.json --dry-run
+python -m campaign.run --config experiments/configs/campaigns/pilot.json    # ~55 min
+python -m campaign.summarize <campaign-id>
+```
 
 ## 2. Run an experiment
 
@@ -49,8 +81,68 @@ python3 -m experiment_runner.runner \
   `query-sim`, not `query`.
 - Output goes to `data/raw/experiments/<experiment-id>/` and contains
   `configuration.json`, `requests.jsonl` and `summary.json`.
-- Span correlation in `summary.json` is **per run** (by run ID), not per request.
+- Each request carries a W3C `traceparent`; `requests.jsonl` records its
+  `trace_id`. Span correlation in `summary.json` is reported per run and **per
+  request** (`telemetry_correlation.request_level`).
 - See `experiments/experiment_runner/README.md` for all options and safety limits.
+
+### Open-loop load and calibration (Phase 3.5B)
+
+Experiments should use the open loop: requests are sent on a timetable, so load
+that the server cannot keep up with shows as latency instead of being hidden.
+
+```sh
+python3 -m experiment_runner.runner --config experiments/configs/open-loop-steady.json
+```
+
+Ramp and burst profiles are in `open-loop-ramp.json` and `open-loop-burst.json`.
+
+Before collecting data on a machine, calibrate the client. Restart the API with
+`ABR_CALIBRATION=1 npm start`, then run:
+
+```sh
+python3 -m experiment_runner.calibrate --rates 5,10,20,50,100
+cat data/results/calibration/*/report.md
+```
+
+The report states the highest rate at which the client keeps to its timetable
+(send lag p99 ≤ 5 ms, no failures, rate within 2 %).
+
+### Analyse a campaign in one command
+
+```sh
+scripts/analyze-campaign.sh <main-id>                       # summary, features, detection, diagnosis, verification
+scripts/analyze-campaign.sh <heldout-id> --train <main-id>  # final evaluation
+cd dashboard && npm install && npm run dev                 # http://localhost:3001
+python -m evaluation.report --main <main-id> [--heldout <heldout-id>]   # docs/results.md, one section per research question
+```
+
+### Held-out session (final numbers): exact procedure
+
+1. Another day than the main campaign. **Charger plugged in the whole time**: the campaign
+   refuses to start on battery, and runs on battery are excluded (protocol rule 5).
+2. Close other heavy programs (browser tabs with video, builds, analysis): background load
+   raises the client send lag, and those runs are excluded and re-run.
+3. Commit everything first (`git status` must be clean), then:
+   ```sh
+   source scripts/env.sh
+   python -m campaign.run --config experiments/configs/campaigns/heldout.json   # 68 runs, ~75 min
+   ```
+4. When it ends: `scripts/analyze-campaign.sh <heldout-id> --train main-20261111T100109-be3c28`,
+   then `python -m evaluation.report --main main-20261111T100109-be3c28 --heldout <heldout-id>`.
+   Analyse it **once**; the held-out data must not be used to change any method.
+
+### Campaign troubleshooting
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| `protocol: ... git status must be clean` | uncommitted changes | commit, then start again |
+| `protocol: the machine is on battery` | charger unplugged | plug in the charger |
+| Run `FAILED: lab-reset.sh ... recovery mode` | PostgreSQL restarted | the reset retries once; if a run still fails, `python -m campaign.run --resume <campaign-id>` repeats only the missing runs |
+| Campaign interrupted (Ctrl+C, reboot) | — | `python -m campaign.run --resume <campaign-id>` |
+| Many runs excluded for send lag | other programs used the CPU | they are re-run automatically at the end; avoid heavy work during campaigns |
+| Power state of an old campaign | — | `python -m campaign.power <campaign-id>` (reads the Windows power log, writes `power.json`) |
+| Dashboard port 3001 in use | an old dashboard still runs | see [08-dashboard-guide.md](08-dashboard-guide.md#troubleshooting) |
 
 ## 3. Analyze the experiments
 
@@ -68,6 +160,8 @@ The analyzer writes a new folder `data/processed/<analysis-id>/` containing:
 | `telemetry_observations.jsonl` | Span counts and process-level resource observations |
 | `data_quality.jsonl` | Problems found in the data |
 | `manifest.json` | Input file hashes and versions |
+| `request_records.jsonl` | Each client request joined to its server span by trace ID (not predictors) |
+| `request_join_summary.json` | Per-run and total request-to-span match rates |
 
 Raw files are only read, never changed. See
 `pipeline/telemetry_analysis/README.md` for details.
@@ -79,13 +173,18 @@ scripts/test-all.sh          # every test suite; nothing is written under data/
 scripts/verify-legacy.sh     # historical checksums + byte-for-byte reproduction of the 9 Nov analysis
 ```
 
-Expected results as of 10 Nov 2026:
+Expected results after Phase 3.5D-1:
 
 | Suite | Result |
 |---|---|
-| Target API | 5 tests pass, plus 1 TODO: the open span-parenting defect, reported but not failing |
-| Experiment runner | 12 tests pass |
-| Telemetry analysis | 12 tests pass |
+| Target API | 16 tests pass, 5 skipped (lab integration tests: `ABR_LAB_TESTS=1 npm run test:lab` against a seeded lab, 5 pass) |
+| Experiment runner | 23 tests pass |
+| Campaign | 15 tests pass (fake lab, no Docker; includes the closed loop) |
+| Features | 5 tests pass |
+| Detection | 7 tests pass (incl. import-boundary rules) |
+| Diagnosis | 7 tests pass (needs `pip install -r requirements.txt`) |
+| Verification | 6 tests pass |
+| Telemetry analysis | 14 tests pass |
 | `verify-legacy.sh` | Prints two proxy-leakage warnings (`p95_latency_ms`, `p99_latency_ms`), which are expected for the legacy data |
 
 ## Where things are

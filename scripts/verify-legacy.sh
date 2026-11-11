@@ -21,7 +21,7 @@ echo "== 1. checksums =="
 echo "== 2. re-run analyzer on legacy data =="
 OUT="$(mktemp -d)"
 trap 'rm -rf "$OUT"' EXIT
-python3 -m telemetry_analysis.analyzer --experiments-dir "$RAW/experiments" --span-file "$RAW/otel-spans.jsonl" --output-dir "$OUT" > /dev/null
+"$ABR_PYTHON" -m telemetry_analysis.analyzer --experiments-dir "$RAW/experiments" --span-file "$RAW/otel-spans.jsonl" --output-dir "$OUT" > /dev/null
 NEW="$(find "$OUT" -mindepth 1 -maxdepth 1 -type d)"
 
 echo "== 3. byte-identical data files =="
@@ -31,9 +31,9 @@ for f in run_features.jsonl run_metadata.jsonl telemetry_observations.jsonl data
 done
 
 echo "== 4. manifest =="
-python3 "$ABR_ROOT/scripts/compare_manifest.py" "$REF/manifest.json" "$NEW/manifest.json" "$RAW/MIGRATION_INVENTORY.tsv"
+"$ABR_PYTHON" "$ABR_ROOT/scripts/compare_manifest.py" "$REF/manifest.json" "$NEW/manifest.json" "$RAW/MIGRATION_INVENTORY.tsv"
 
 echo "== 5. leakage checks on the 9 Nov output =="
-python3 -m telemetry_analysis.leakage_audit "$REF"
+"$ABR_PYTHON" -m telemetry_analysis.leakage_audit "$REF"
 
 echo "LEGACY VERIFICATION PASSED"

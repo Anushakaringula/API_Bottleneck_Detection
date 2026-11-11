@@ -1,0 +1,88 @@
+# Local lab for controlled experiments (Phase 3.5C): PostgreSQL + Redis on this machine.
+# Start/stop/reset with scripts/lab-up.sh, lab-down.sh, lab-reset.sh (see infrastructure/README.md).
+# Ports are published on 127.0.0.1 only. Passwords are local-only lab values, not secrets.
+name: abr-lab
+
+services:
+  postgres:
+    # Pinned to the exact image used for the experiments (tag for reading, digest for identity).
+    image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: lab
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    # Fixed resources, so every run gets the same database machine.
+    cpus: "2"
+    mem_limit: 2g
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab -d lab"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4.12@sha256:2e3eb11462c4e3759e6972678dd051d150ff54b1e60714b3c33b701260172a90
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    cpus: "1"
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "labpass", "--no-auth-warning", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The system under test, on the lab network (Phase 3.5C-2). Not started by lab-up.sh:
+  # scripts/lab-api.sh up|down|restart|logs. The workload runner on the host reaches it at
+  # 127.0.0.1:3000; its database and cache calls stay inside this network.
+  # ABR_VARIANTS etc. are taken from the shell that runs lab-api.sh.
+  api:
+    profiles: ["api"]
+    build:
+      context: ../target-api
+    image: abr-target-api:lab
+    init: true
+    environment:
+      ABR_ENV_PROFILE: lab
+      DATABASE_URL: postgresql://lab:lab@postgres:5432/lab
+      REDIS_URL: redis://default:labpass@redis:6379
+      PORT: "3000"
+      METRICS_PORT: "9464"
+      ABR_DATA_DIR: /data
+      PG_POOL_MAX: ${PG_POOL_MAX:-10}
+      ABR_VARIANTS: ${ABR_VARIANTS:-}
+      ABR_CALIBRATION: ${ABR_CALIBRATION:-}
+      EXPERIMENT_RUN_ID: ${EXPERIMENT_RUN_ID:-}
+      ABR_RUNTIME_SAMPLE_MS: ${ABR_RUNTIME_SAMPLE_MS:-1000}
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:9464:9464"
+    volumes:
+      - ../data:/data
+    # Fixed resources for the system under test.
+    cpus: "2"
+    mem_limit: 1g
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  pgdata:

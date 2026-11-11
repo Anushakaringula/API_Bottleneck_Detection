@@ -8,6 +8,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.lab.example
 
 # Local service data (PostgreSQL / Redis, from Phase 3.5C)
 .lab/

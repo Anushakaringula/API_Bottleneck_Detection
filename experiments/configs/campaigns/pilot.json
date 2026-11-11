@@ -1,0 +1,38 @@
+{
+  "name": "pilot",
+  "description": "Pilot campaign (Phase 3.5D-1): measures healthy run-to-run noise, effect size of every fault at its default severity, telemetry completeness and run time, as input for the experiment protocol. Every fault in both of its operations; healthy x3 per operation; two fixed variants as a preview of the back-to-healthy check.",
+  "random_seed": 20261111,
+  "seed_scale": "large",
+  "workload": {
+    "load_model": "open",
+    "arrival_process": "poisson",
+    "request_rate_per_second": 5,
+    "duration_seconds": 30,
+    "warmup_requests": 20,
+    "concurrency": 50,
+    "timeout_seconds": 30,
+    "span_wait_seconds": 15
+  },
+  "operation_workload": {
+    "reports": { "request_rate_per_second": 0.5, "warmup_requests": 3, "duration_seconds": 60 }
+  },
+  "conditions": [
+    { "operation": "users.list",    "variants": ["healthy"], "repeats": 3 },
+    { "operation": "users.get",     "variants": ["healthy"], "repeats": 3 },
+    { "operation": "products.list", "variants": ["healthy"], "repeats": 3 },
+    { "operation": "products.get",  "variants": ["healthy"], "repeats": 3 },
+    { "operation": "orders.list",   "variants": ["healthy"], "repeats": 3 },
+    { "operation": "search",        "variants": ["healthy"], "repeats": 3 },
+    { "operation": "reports",       "variants": ["healthy"], "repeats": 3 },
+    { "operation": "dashboard",     "variants": ["healthy"], "repeats": 3 },
+
+    { "operation": "users.list",    "variants": ["nplus1:20", "nplus1-fixed:20"], "repeats": 2 },
+    { "operation": "users.get",     "variants": ["nplus1:10"], "repeats": 2 },
+    { "operation": "orders.list",   "variants": ["noindex"], "repeats": 2 },
+    { "operation": "search",        "variants": ["noindex", "payload:1000"], "repeats": 2 },
+    { "operation": "products.list", "variants": ["payload:2000"], "repeats": 2 },
+    { "operation": "products.get",  "variants": ["cache", "cpu:100"], "repeats": 2 },
+    { "operation": "reports",       "variants": ["cache", "cache-fixed"], "repeats": 2 },
+    { "operation": "dashboard",     "variants": ["cpu:100"], "repeats": 2 }
+  ]
+}
