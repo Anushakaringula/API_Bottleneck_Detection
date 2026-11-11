@@ -23,6 +23,23 @@ variant exists in the target API's registry. A failed run is recorded and the ca
 continues; `--resume` retries failed runs and skips completed ones. Ctrl+C stops the target
 API cleanly.
 
+## Protocol rules (experiments/protocol.md)
+
+Campaign configs switch the protocol's rules on. `main.json` and `heldout.json` use all of
+them:
+
+| Key | Effect |
+|---|---|
+| `require_clean_git` | refuse to start unless `git status` is clean (results must map to one commit) |
+| `discard_warmup_runs` | N unlabelled healthy runs at the start of every session (cold start) |
+| `exclusion` | thresholds of the exclusion rules (`quality.py`): complete correlation, failed requests ≤ 1 %, client send-lag p99 ≤ 10 ms; plus uncommitted code and a changed target-API image |
+| `rerun_excluded` | after all planned runs, re-run each excluded run once (new position, same condition) |
+| `apply_exclusions` | `campaign.summarize` leaves excluded runs out of all statistics and lists them with reasons |
+
+`data/raw/campaigns/<id>/exclusions.json` lists every excluded run, its reasons and its re-run.
+The target-API image is built once before the campaign, and its ID is recorded in the
+manifest and per run.
+
 ## What one run does
 
 1. `scripts/lab-reset.sh`: database `lab` recreated from the seeded template; query

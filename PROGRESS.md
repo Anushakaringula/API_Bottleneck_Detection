@@ -33,8 +33,8 @@ remediation engine, verification, dashboard) has not started.
 | 3.5C-1 | Local lab: Docker PostgreSQL 16.15 + Redis 7.4.12, env profiles, lab probe | `8af1f81` | round trip p99 0.33 ms; reset reproducible | ✅ |
 | 3.5C-2 | Domain API (9 operations), deterministic seed up to 1M orders, variant registry, API in Docker | `cfa029e` | lab tests 5/5; seed byte-identical | ✅ |
 | 3.5C-3 | Faults × 2 operations each, with fixed variants and severities | `7c2f018` | 10/10 fault checks, 3/3 severity ladders | ✅ |
-| 3.5D-1 | Campaign orchestrator, ground-truth labels, pilot campaign + pilot report, protocol draft | (to commit) | pilot 48/48 runs, 100 % requests matched; noise and effects measured | ✅ verified, to commit |
-| 3.5D-2 | Protocol approval (Prof. Sagar), main campaign (220 runs) + held-out session (68 runs) | — | protocol approved; data-quality report clean | ⬜ waiting for approval |
+| 3.5D-1 | Campaign orchestrator, ground-truth labels, pilot campaign + pilot report, protocol draft | `0275bbb` | pilot 48/48 runs, 100 % requests matched; noise and effects measured | ✅ |
+| 3.5D-2 | Protocol v1 frozen (team decision), rules enforced in code, main campaign (220 runs) + held-out session (68 runs, another day) | — | data-quality report clean; exclusions reported | 🔄 tooling ready; main campaign starts after this commit |
 | Analyzer v2 | Server-side features, baseline-relative features, telemetry levels L1–L4 | — | no single feature separates operations | ⬜ |
 | 4 | Detection: normal / anomalous / inconclusive against healthy baselines | — | false-alarm and detection rates on held-out data | ⬜ |
 | 5 | Diagnosis: rules → Random Forest / XGBoost, abstention, L1–L4 | — | all methods on identical runs and splits | ⬜ |
@@ -94,6 +94,8 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | 11 Nov | `reports` workload: 0.5 rps, 60 s, days ∈ {7, 14, 30} | At 1 rps (days up to 90) the cache fault collapsed instead of slowing down (smoke campaign) |
 | 11 Nov | Detection uses server-side telemetry (L2+); client-only (L1) is the weakest level in RQ3 | Pilot: client floor (~15 ms) makes client CV up to 3× larger; server separates all 10 faults |
 | 11 Nov | Protocol draft: main 220 runs, held-out 68 runs, exclusion rules, discarded warm-up run | Pilot noise and effect sizes (`experiments/protocol.md`) |
+| 11 Nov | **Protocol v1 frozen by team decision** with the pilot-supported values: anomalous = server-side run p50 > max(P99 healthy, 1.2 × healthy median); false alarms ≤ 5 %; back-to-healthy ± 10 %; preliminary thresholds 4.4–23.6 ms per operation | Pilot: every fault run above its threshold, both fixed variants below; to be presented to Prof. Sagar |
+| 11 Nov | Protocol rules enforced in code (clean git, discarded warm-up run, exclusions with one re-run) | Rules applied automatically, not by hand |
 
 ## Open items
 
@@ -102,15 +104,13 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Copy the legacy data from the laptop backup; run `scripts/verify-legacy.sh` | team | open |
 | Push `develop` and check the GitHub Actions run | team | open |
 | Rotate Neon and Redis Cloud passwords (pasted in chat) | team | open |
-| **Approve the protocol** (`experiments/protocol.md`, §9: thresholds, false-alarm rate, equivalence margin, repeats, severities, exclusions) | Prof. Sagar | draft ready (11 Nov) |
-| Commit before the main campaign (`git_dirty` must be false; the pilot ran dirty) | team | open |
+| Present protocol v1 (`experiments/protocol.md` §9, adopted by the team on 11 Nov) to Prof. Sagar; record any requested change as an amendment | team | open |
+| Run the held-out session on a different day than the main campaign | team | after the main campaign |
 
 ## Next steps
 
-1. Commit 3.5D-1. Prof. Sagar reviews `experiments/protocol.md`.
-2. **Analyzer v2 (can start now, on the pilot data):** server-side and database/cache features
-   per request and run, baseline-relative features, telemetry levels L1–L4, extended leakage
-   audit.
-3. 3.5D-2: main campaign (220 runs, about 3.7 h) and held-out session (68 runs) once the
-   protocol is approved.
+1. Commit this step. Then run the **main campaign** (220 runs, about 4 h, from the committed tree).
+2. While it runs: **Analyzer v2** (`pipeline/` only, so the target API and campaign code stay unchanged
+   during the campaign).
+3. **Held-out session** (68 runs) on another day.
 4. Detection → diagnosis → remediation → verification → dashboard → report.

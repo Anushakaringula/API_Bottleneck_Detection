@@ -1,0 +1,218 @@
+{
+  "name": "main",
+  "description": "Main campaign (Phase 3.5D-2), experiments/protocol.md v1: healthy 8 operations x 10, 22 fault conditions x 5, 10 fixed variants x 3 = 220 runs.",
+  "random_seed": 2026111201,
+  "seed_scale": "large",
+  "workload": {
+    "load_model": "open",
+    "arrival_process": "poisson",
+    "request_rate_per_second": 5,
+    "duration_seconds": 30,
+    "warmup_requests": 20,
+    "concurrency": 50,
+    "timeout_seconds": 30,
+    "span_wait_seconds": 15
+  },
+  "operation_workload": {
+    "reports": {
+      "request_rate_per_second": 0.5,
+      "warmup_requests": 3,
+      "duration_seconds": 60
+    }
+  },
+  "require_clean_git": true,
+  "discard_warmup_runs": 1,
+  "rerun_excluded": true,
+  "apply_exclusions": true,
+  "exclusion": {
+    "require_complete_correlation": true,
+    "max_failed_fraction": 0.01,
+    "max_send_lag_p99_ms": 10.0
+  },
+  "conditions": [
+    {
+      "operation": "users.list",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "users.get",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "products.list",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "products.get",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "orders.list",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "search",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "reports",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "dashboard",
+      "variants": [
+        "healthy"
+      ],
+      "repeats": 10
+    },
+    {
+      "operation": "users.list",
+      "variants": [
+        "nplus1:5",
+        "nplus1:20",
+        "nplus1:50"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "users.get",
+      "variants": [
+        "nplus1:3",
+        "nplus1:10",
+        "nplus1:30"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "products.list",
+      "variants": [
+        "payload:200",
+        "payload:2000",
+        "payload:5000"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "search",
+      "variants": [
+        "payload:100",
+        "payload:1000",
+        "payload:3000",
+        "noindex"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "products.get",
+      "variants": [
+        "cpu:20",
+        "cpu:100",
+        "cpu:300",
+        "cache"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "dashboard",
+      "variants": [
+        "cpu:20",
+        "cpu:100",
+        "cpu:300"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "orders.list",
+      "variants": [
+        "noindex"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "reports",
+      "variants": [
+        "cache"
+      ],
+      "repeats": 5
+    },
+    {
+      "operation": "users.list",
+      "variants": [
+        "nplus1-fixed:20"
+      ],
+      "repeats": 3
+    },
+    {
+      "operation": "users.get",
+      "variants": [
+        "nplus1-fixed:10"
+      ],
+      "repeats": 3
+    },
+    {
+      "operation": "products.list",
+      "variants": [
+        "payload-fixed:2000"
+      ],
+      "repeats": 3
+    },
+    {
+      "operation": "search",
+      "variants": [
+        "payload-fixed:1000",
+        "noindex-fixed"
+      ],
+      "repeats": 3
+    },
+    {
+      "operation": "products.get",
+      "variants": [
+        "cpu-fixed:100",
+        "cache-fixed"
+      ],
+      "repeats": 3
+    },
+    {
+      "operation": "dashboard",
+      "variants": [
+        "cpu-fixed:100"
+      ],
+      "repeats": 3
+    },
+    {
+      "operation": "orders.list",
+      "variants": [
+        "noindex-fixed"
+      ],
+      "repeats": 3
+    },
+    {
+      "operation": "reports",
+      "variants": [
+        "cache-fixed"
+      ],
+      "repeats": 3
+    }
+  ]
+}

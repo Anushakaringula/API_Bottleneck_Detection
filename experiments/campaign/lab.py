@@ -68,6 +68,13 @@ class Lab:
     def api_down(self) -> None:
         self._script("lab-api.sh", "down", timeout=180)
 
+    def build_image(self) -> None:
+        """Builds the target-API image from the current code (before the campaign's environment is recorded)."""
+        self._docker("compose", "-f", str(COMPOSE_FILE), "--profile", "api", "build", "api", timeout=900)
+
+    def image_id(self) -> str:
+        return self._docker("image", "inspect", "abr-target-api:lab", "--format", "{{.Id}}").strip()
+
     def api_logs_tail(self, lines: int = 20) -> str:
         try:
             return self._docker("compose", "-f", str(COMPOSE_FILE), "--profile", "api", "logs", "--no-color", "--tail", str(lines), "api")

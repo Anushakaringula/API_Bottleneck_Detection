@@ -381,6 +381,34 @@ correlation. Two problems found and fixed:
 main campaign 220 runs (~3.7 h) and held-out 68 runs, severities including weak levels,
 exclusion rules, the analysis plan, and the decisions requested (§9).
 
+### Phase 3.5D-2 preparation: protocol v1 and enforced rules (11 November 2026)
+
+- **Protocol frozen as v1 by team decision** (`experiments/protocol.md`): the pilot-supported
+  values of §9 were adopted as proposed, to be presented to Prof. Sagar. Any change he requests
+  becomes an amendment.
+  - Anomalous: server-side run p50 > max(P99 of healthy run p50s, 1.2 × healthy median),
+    from the main campaign's 10 healthy runs per operation.
+  - False alarms ≤ 5 %; back-to-healthy margin ± 10 %.
+  - Preliminary pilot thresholds 4.42–23.59 ms per operation. Every pilot fault run lies
+    above its threshold; both fixed variants lie below.
+- **Rules enforced in code:**
+  - `require_clean_git`;
+  - `discard_warmup_runs` (one unlabelled run per session);
+  - exclusion rules in `experiments/campaign/quality.py`;
+  - `rerun_excluded` (one re-run, recorded as `rerun_of`);
+  - `apply_exclusions` in the summary;
+  - the target-API image is built before the manifest; its ID is recorded per run.
+  - Re-summarizing the pilot under the rules (informational) excludes all 48 runs, because
+    the pilot ran with uncommitted code. As intended, the pilot is not analysis data.
+- **Configs:** `main.json` (220 runs: healthy 80, faults 110, fixed 30; about 4 h) and
+  `heldout.json` (68 runs, own seed, another day).
+  - Class counts in main: N_PLUS_ONE, LARGE_PAYLOAD, CPU_BOTTLENECK 30 each;
+    DB_BOTTLENECK and CACHE_OPPORTUNITY 10 each (no severity levels); NONE 110.
+  - Diagnosis needs class weighting.
+- **Heavy-severity check** (scratch, not data): payload 5000/3000, cpu 300 and N+1 50/30 all
+  ran with send-lag p99 ≤ 4.6 ms, 0 failures and complete correlation.
+- Tests: campaign 14 (5 new protocol-rule tests).
+
 ### Historical data (frozen)
 
 - Raw: `data/raw/legacy-2026-11-09/`. Analysis: `data/processed/legacy/`.

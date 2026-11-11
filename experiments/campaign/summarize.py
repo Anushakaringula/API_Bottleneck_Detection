@@ -20,6 +20,8 @@ from typing import Any
 
 from experiment_runner.runner import DATA_DIR, utc_now
 
+from .quality import exclusion_reasons, exclusion_rules
+
 
 def _jsonl(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.exists() else []
@@ -42,6 +44,7 @@ def run_rows(campaign_dir: Path, labels: list[dict[str, Any]], progress: list[di
              spans_dir: Path | None = None) -> list[dict[str, Any]]:
     spans_dir = spans_dir or DATA_DIR / "raw" / "spans" / "runs"
     wall = {p["experiment_id"]: p.get("wall_seconds") for p in progress if p.get("status") == "completed"}
+    image = {p["experiment_id"]: p.get("image_id") for p in progress if p.get("status") == "completed"}
     rows = []
     for label in labels:
         summary_file = campaign_dir / "experiments" / label["experiment_id"] / "summary.json"
@@ -66,6 +69,8 @@ def run_rows(campaign_dir: Path, labels: list[dict[str, Any]], progress: list[di
             "requests_matched": request_level.get("requests_matched_to_one_span"),
             "requests_attempted": request_level.get("client_requests"),
             "wall_seconds": wall.get(label["experiment_id"]),
+            "image_id": image.get(label["experiment_id"]),
+            "rerun_of": label.get("rerun_of"),
         })
     return rows
 
@@ -96,7 +101,19 @@ def summarize(campaign_dir: Path, labels_file: Path, spans_dir: Path | None = No
     manifest = json.loads((campaign_dir / "manifest.json").read_text(encoding="utf-8"))
     labels = _jsonl(labels_file)
     progress = _jsonl(campaign_dir / "progress.jsonl")
-    rows = run_rows(campaign_dir, labels, progress, spans_dir)
+    all_rows = run_rows(campaign_dir, labels, progress, spans_dir)
+    # Protocol exclusion rules (quality.py), applied to every run; with apply_exclusions the
+    # excluded runs are left out of all statistics below (main and held-out campaigns).
+    config = manifest["config"]
+    rules = exclusion_rules(config)
+    for row in all_rows:
+        row["excluded_reasons"] = exclusion_reasons({
+            "correlation_status": "complete" if row["correlation_complete"] else "partial",
+            "measured_requests": row["requests"], "failed_requests": row["failed"],
+            "send_lag_p99_ms": row["send_lag_p99_ms"], "image_id": row["image_id"],
+        }, manifest.get("environment", {}), rules)
+    apply = bool(config.get("apply_exclusions"))
+    rows = [r for r in all_rows if not (apply and r["excluded_reasons"])]
     conditions: dict[str, dict[str, Any]] = {}
     for row in rows:
         conditions.setdefault(row["condition_id"], {"operation": row["operation"], "variant": row["variant"], "fault_class": row["fault_class"], "is_fixed": row["is_fixed"], "runs": []})["runs"].append(row)
@@ -138,7 +155,12 @@ def summarize(campaign_dir: Path, labels_file: Path, spans_dir: Path | None = No
     wall = [r["wall_seconds"] for r in rows if r["wall_seconds"] is not None]
     report = {
         "campaign_id": manifest["campaign_id"], "created_at": utc_now(), "planned_runs": len(manifest["runs"]),
-        "completed_runs": len(rows), "failed_runs": sum(1 for p in progress if p["status"] == "failed"),
+        "completed_runs": len(all_rows), "analysed_runs": len(rows), "failed_runs": sum(1 for p in progress if p["status"] == "failed"),
+        "exclusions": {
+            "applied": apply, "rules": rules,
+            "excluded_runs": [{"experiment_id": r["experiment_id"], "run_index": r["run_index"], "condition_id": r["condition_id"],
+                               "reasons": r["excluded_reasons"], "rerun_of": r["rerun_of"]} for r in all_rows if r["excluded_reasons"]],
+        },
         "telemetry": {
             "runs_with_complete_correlation": sum(1 for r in rows if r["correlation_complete"]),
             "requests_attempted_incl_warmup": attempted, "requests_matched_to_one_span": matched,
@@ -147,7 +169,7 @@ def summarize(campaign_dir: Path, labels_file: Path, spans_dir: Path | None = No
             "max_send_lag_p99_ms": max((r["send_lag_p99_ms"] or 0) for r in rows) if rows else None,
         },
         "run_time": {"mean_wall_seconds": statistics.fmean(wall) if wall else None, "total_wall_minutes": sum(wall) / 60 if wall else None},
-        "healthy_noise": healthy_noise, "conditions": out_conditions, "runs": rows,
+        "healthy_noise": healthy_noise, "conditions": out_conditions, "runs": all_rows,
     }
     return report
 
@@ -159,6 +181,13 @@ def markdown(report: dict[str, Any]) -> str:
         f"# Campaign summary: {report['campaign_id']}", "",
         f"Runs: {report['completed_runs']} completed of {report['planned_runs']} planned, {report['failed_runs']} failed. "
         f"Total run time {f(report['run_time']['total_wall_minutes'], 1)} min (mean {f(report['run_time']['mean_wall_seconds'], 0)} s per run).", "",
+        "## Exclusions (protocol §7)", "",
+        (f"Applied: {len(report['exclusions']['excluded_runs'])} runs excluded; statistics below use the {report['analysed_runs']} remaining runs."
+         if report["exclusions"]["applied"] else
+         f"Not applied to this campaign (informational): {len(report['exclusions']['excluded_runs'])} runs would be excluded under the protocol rules."), "",
+        *([f"- run {e['run_index']} ({e['condition_id']}{', re-run of ' + str(e['rerun_of']) if e['rerun_of'] else ''}): {'; '.join(e['reasons'])}"
+           for e in report["exclusions"]["excluded_runs"][:40]] or ["- none"]),
+        "",
         "## Telemetry completeness", "",
         f"- Runs with complete request-to-span correlation: {t['runs_with_complete_correlation']} / {report['completed_runs']}",
         f"- Requests matched to exactly one span: {t['requests_matched_to_one_span']} / {t['requests_attempted_incl_warmup']} ({f(100 * t['request_match_rate'] if t['request_match_rate'] is not None else None, 2)} %)",

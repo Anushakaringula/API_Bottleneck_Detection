@@ -141,7 +141,7 @@ class OrchestratorTests(unittest.TestCase):
     def test_every_run_resets_starts_with_its_variant_and_stops(self):
         lab, executed = FakeLab(), []
         counts = self.run_campaign(lab, executed)
-        self.assertEqual(counts, {"completed": 11, "failed": 0, "skipped": 0})
+        self.assertEqual(counts, {"completed": 11, "failed": 0, "skipped": 0, "warmup": 0, "rerun": 0})
         ups = [c for c in lab.calls if isinstance(c, tuple)]
         self.assertEqual(len(ups), 11)
         self.assertEqual(lab.calls.count("reset"), 11)
@@ -154,9 +154,9 @@ class OrchestratorTests(unittest.TestCase):
         self.assertTrue((self.campaign_dir / "db-stats" / "exp-001.json").exists())
 
     def test_failed_runs_are_recorded_and_resume_continues(self):
-        lab, executed = FakeLab(fail_runs={"-r0002"}), []
+        lab, executed = FakeLab(fail_runs={"-r000002"}), []
         counts = self.run_campaign(lab, executed, limit=4)
-        self.assertEqual(counts, {"completed": 3, "failed": 1, "skipped": 0})
+        self.assertEqual(counts, {"completed": 3, "failed": 1, "skipped": 0, "warmup": 0, "rerun": 0})
         self.assertFalse(lab.api_running)
         progress = [json.loads(line) for line in (self.campaign_dir / "progress.jsonl").read_text().splitlines()]
         failed = [p for p in progress if p["status"] == "failed"]
@@ -164,7 +164,7 @@ class OrchestratorTests(unittest.TestCase):
         self.assertIn("simulated start failure", failed[0]["error"])
         # Resume: completed runs are skipped, the failed one is retried.
         counts = self.run_campaign(FakeLab(), executed)
-        self.assertEqual(counts, {"completed": 8, "failed": 0, "skipped": 3})
+        self.assertEqual(counts, {"completed": 8, "failed": 0, "skipped": 3, "warmup": 0, "rerun": 0})
         self.assertEqual(len(self.labels.read_text().splitlines()), 11)
 
     def test_summary_reports_noise_and_effects(self):

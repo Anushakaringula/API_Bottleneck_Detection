@@ -1,8 +1,12 @@
-# Experiment protocol (DRAFT for approval)
+# Experiment protocol (v1, frozen)
 
-**Status: draft, 11 Nov 2026. To be reviewed and approved by Prof. G. Sagar before the main
-campaign (Phase 3.5D-2). Once approved, this file is frozen; any change is recorded in
-"Amendments" with its date and reason.**
+**Status: frozen on 11 Nov 2026 by team decision, before the main campaign.**
+
+- The values in §9 are the ones the pilot data supports. The team adopted them as proposed;
+  they are to be presented to Prof. G. Sagar.
+- If he asks for changes before the main data is analysed, they are recorded under
+  "Amendments" and applied to the analysis.
+- Any other change is also recorded under "Amendments", with its date and reason.
 
 The protocol fixes, before the main data is collected, what will be run, how often, in which
 order, and which runs are excluded. This prevents choosing the analysis after seeing the
@@ -138,18 +142,39 @@ Pilot check:
   with effect size and a bootstrap CI; fixed versus healthy with an equivalence test within
   the margin below.
 
-## 9. Decisions requested from Prof. Sagar
+## 9. Decisions (team, 11 Nov 2026; to be presented to Prof. Sagar)
 
-| # | Decision | Proposal |
-|---|---|---|
-| 1 | Minimum meaningful slowdown for "anomalous" | 20 % over the operation's healthy baseline |
-| 2 | Detection threshold | above the 99th percentile of healthy run p50s **and** ≥ 20 % over the healthy median |
-| 3 | Acceptable false-alarm rate | ≤ 5 % of healthy runs |
-| 4 | Equivalence margin for "back to healthy" | ± 10 % of the healthy median (server-side run p50) |
-| 5 | Repeats | as in §5 (main 220 runs, held-out 68 runs) |
-| 6 | Severities | as in §4, including the deliberately weak levels |
-| 7 | Exclusion rules | as in §7 |
+| # | Decision | Value adopted | Basis in the pilot |
+|---|---|---|---|
+| 1 | Minimum meaningful slowdown for "anomalous" | **20 %** over the operation's healthy baseline (server-side run p50) | healthy server CV ≤ 8.3 %, so 20 % is ≥ 2.4 CV above normal variation |
+| 2 | Detection threshold per operation | **threshold = max(P99 of the healthy run p50s, 1.2 × healthy median)**, from the main campaign's 10 healthy runs per operation; run is *anomalous* if its server-side run p50 > threshold | all 10 pilot fault conditions above it in every run; both fixed variants below |
+| 3 | Acceptable false-alarm rate | **≤ 5 %** of healthy runs (held-out session) | |
+| 4 | Equivalence margin for "back to healthy" | **± 10 %** of the healthy median (server-side run p50) | pilot fixed variants at ×0.90 and ×0.99 |
+| 5 | Repeats | **main 220 runs, held-out 68 runs** (§5) | server-side 2–3 repeats suffice for 20 %; extra repeats for ML and margin |
+| 6 | Severities | **§4**, three levels incl. weak ones | heaviest levels checked on 11 Nov: send-lag p99 ≤ 4.6 ms, 0 failures (scratch check, not data) |
+| 7 | Exclusion rules | **§7**, enforced by `experiments/campaign/quality.py` | |
+
+**Preliminary thresholds from the pilot** (3 healthy runs per operation; for orientation
+only, because the final values come from the main campaign as in decision 2):
+
+| Operation | Healthy median (ms) | Healthy max (ms) | 1.2 × median (ms) | Preliminary threshold (ms) | Pilot fault runs above |
+|---|---|---|---|---|---|
+| dashboard | 19.66 | 21.62 | 23.59 | 23.59 | 2/2 |
+| orders.list | 5.49 | 5.75 | 6.59 | 6.59 | 2/2 |
+| products.get | 3.69 | 3.75 | 4.42 | 4.42 | 4/4 |
+| products.list | 4.98 | 5.02 | 5.97 | 5.97 | 2/2 |
+| reports | 4.62 | 4.77 | 5.54 | 5.54 | 2/2 (cache-fixed below) |
+| search | 4.61 | 4.82 | 5.53 | 5.53 | 4/4 |
+| users.get | 6.70 | 6.70 | 8.04 | 8.04 | 2/2 |
+| users.list | 5.05 | 5.15 | 6.06 | 6.06 | 2/2 (nplus1-fixed below) |
+
+Detection (Phase 4) may later use baseline-relative features instead of the server-side
+run p50 alone. The rule above remains the detector of record, and any new detector is
+compared against it.
 
 ## Amendments
 
-(none yet)
+| Date | Change | Reason |
+|---|---|---|
+| 11 Nov 2026 | Draft → v1 frozen; §9 values adopted by the team as proposed; preliminary thresholds added | team decision to proceed with the pilot-supported values; to be presented to Prof. Sagar |
+| 11 Nov 2026 | §6/§7 enforced in code: `require_clean_git`, `discard_warmup_runs`, `rerun_excluded`, `apply_exclusions` (`experiments/campaign/run.py`, `quality.py`); campaign configs `main.json`, `heldout.json` | the rules are applied automatically and reported, not by hand |
