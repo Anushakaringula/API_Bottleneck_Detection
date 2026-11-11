@@ -27,7 +27,8 @@
   "exclusion": {
     "require_complete_correlation": true,
     "max_failed_fraction": 0.01,
-    "max_send_lag_p99_ms": 10.0
+    "max_send_lag_p99_ms": 10.0,
+    "require_ac_power": true
   },
   "conditions": [
     {

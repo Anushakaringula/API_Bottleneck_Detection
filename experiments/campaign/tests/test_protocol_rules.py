@@ -34,6 +34,24 @@ class ExclusionRuleTests(unittest.TestCase):
         self.assertIn("git_dirty", exclusion_reasons(GOOD, {**ENV, "git_dirty": True}, DEFAULT_EXCLUSION)[0])
         self.assertTrue(exclusion_reasons({**GOOD, "send_lag_p99_ms": None}, ENV, DEFAULT_EXCLUSION))
 
+    def test_battery_rule(self):
+        rules = {**DEFAULT_EXCLUSION, "require_ac_power": True}
+        self.assertIn("battery", exclusion_reasons({**GOOD, "ac_power": False}, ENV, rules)[0])
+        self.assertEqual(exclusion_reasons({**GOOD, "ac_power": True}, ENV, rules), [])
+        self.assertEqual(exclusion_reasons({**GOOD, "ac_power": None}, ENV, rules), [])  # unknown (desktop) is kept
+        self.assertEqual(exclusion_reasons({**GOOD, "ac_power": False}, ENV, DEFAULT_EXCLUSION), [])  # rule off
+
+    def test_power_state_between(self):
+        import datetime as dt
+        from campaign.power import state_between
+        t = lambda m: dt.datetime(2026, 11, 11, 10, m, tzinfo=dt.timezone.utc)
+        changes = [(t(10), True), (t(20), False)]
+        self.assertEqual(state_between(changes, t(1), t(5)), "battery")  # before the first change: its opposite
+        self.assertEqual(state_between(changes, t(11), t(15)), "ac")
+        self.assertEqual(state_between(changes, t(18), t(22)), "mixed")
+        self.assertEqual(state_between(changes, t(25), t(30)), "battery")
+        self.assertEqual(state_between([], t(1), t(2)), "unknown")
+
     def test_docker_image_ids_are_not_compared(self):
         # Docker image IDs change on every rebuild of identical code: only content identities count.
         legacy = {"git_dirty": False, "target_api_image_id": "sha256:aaa"}

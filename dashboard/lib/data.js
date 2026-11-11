@@ -3,21 +3,21 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const DATA_DIR = path.resolve(process.env.ABR_DATA_DIR || path.join(process.cwd(), "..", "data"));
+export const DATA_DIR = path.resolve(/*turbopackIgnore: true*/ process.env.ABR_DATA_DIR || path.join(process.cwd(), "..", "data"));
 
 function readJson(...parts) {
-  const file = path.join(DATA_DIR, ...parts);
+  const file = path.join(/*turbopackIgnore: true*/ DATA_DIR, ...parts);
   return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null;
 }
 
 function readJsonl(...parts) {
-  const file = path.join(DATA_DIR, ...parts);
+  const file = path.join(/*turbopackIgnore: true*/ DATA_DIR, ...parts);
   if (!fs.existsSync(file)) return [];
   return fs.readFileSync(file, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
 }
 
 function listDirs(...parts) {
-  const dir = path.join(DATA_DIR, ...parts);
+  const dir = path.join(/*turbopackIgnore: true*/ DATA_DIR, ...parts);
   return fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name) : [];
 }
 

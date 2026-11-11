@@ -50,8 +50,9 @@ def dataset_section(main: str, heldout: str | None) -> list[str]:
             lines.append(f"- {name}: {'not run yet' if not cid else 'no summary'}")
             continue
         t, ex = s["telemetry"], s.get("exclusions", {})
-        lines.append(f"- **{name}** `{cid}`: {s['completed_runs']} runs completed of {s['planned_runs']} planned; "
-                     f"{len(ex.get('excluded_runs', []))} excluded by the protocol ({'applied' if ex.get('applied') else 'informational'}); "
+        n_ex = len(ex.get("excluded_runs", []))
+        lines.append(f"- **{name}** `{cid}`: {s['planned_runs']} planned runs; {s['completed_runs']} runs completed, of which "
+                     f"{n_ex} were excluded by the protocol and replaced by a re-run ({'applied' if ex.get('applied') else 'informational'}); "
                      f"{t['requests_matched_to_one_span']}/{t['requests_attempted_incl_warmup']} requests matched to their spans "
                      f"({pct(t['request_match_rate'], 2)}); {t['failed_requests']} failed requests. Source: {src('campaigns', cid)}")
     return lines + [""]
@@ -108,6 +109,7 @@ def rq2_to_rq5(main: str, heldout: str | None) -> list[str]:
               + ("ML does better than the rules." if best_ml > rules["macro_f1"] + 0.02 else
                  "ML does not do better than the interpretable rules." if best_ml < rules["macro_f1"] - 0.02 else "Rules and ML perform about the same."),
               "", "## RQ5 Uncertainty: abstention", "",
+              f"Models evaluated {'once on the held-out session' if final else 'with grouped cross-validation (condition unseen)'}.", "",
               "| Method (L4) | Confidence threshold | Coverage | Accuracy when answering |", "|---|---|---|---|",
               f"| Rules | – | {pct(rules['coverage'])} | {pct(rules['selective_accuracy'])} |"]
     for kind in ("random_forest", "xgboost"):
@@ -134,7 +136,23 @@ def rq6(main: str) -> list[str]:
         lines.append(f"| {p['pair']} | {num(p['median_ms']['faulty'], 2)} → {num(p['median_ms']['fixed'], 2)} ({num(p['median_ms']['healthy'], 2)}) ms | "
                      f"×{num(p['improvement']['ratio'])} | {num(p['improvement']['p_holm'], 4)} | ×{num(b['ratio'])} "
                      f"[{num(b['ci90'][0]) if b['ci90'] else '–'}, {num(b['ci90'][1]) if b['ci90'] else '–'}] | {p['verdict']} |")
-    return lines + ["", f"Source: {src('verification', main)}", ""]
+    lines += ["", f"Source: {src('verification', main)}", ""]
+    loops_dir = DATA_DIR / "results" / "loops"
+    loops = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(loops_dir.glob("*/report.json"))] if loops_dir.exists() else []
+    loops = [r for r in loops if r.get("baseline_campaign") == main]
+    if loops:
+        lines += ["### Closed loop (observe → detect → diagnose → remediate → re-run → verify)", "",
+                  "The fault is injected without telling the system; it is revealed only after the loop.", "",
+                  "| Loop | Injected | Detected | Diagnosis | Fix applied | Server p50 before → after (healthy) | Outcome |", "|---|---|---|---|---|---|---|"]
+        for r in loops:
+            v = r.get("verification") or {}
+            imp = v.get("improvement") or {}
+            med = lambda xs: sorted(xs)[len(xs) // 2] if xs else None
+            lines.append(f"| `{r['loop_id']}` | {r['operation']} `{r['injected_variant']}` | {'yes' if r['detection']['anomalous'] else 'no'} | "
+                         f"{(r.get('diagnosis') or {}).get('class', '–')} | `{v.get('fix_variant', '–')}` | "
+                         f"{num(med(v.get('before_ms')), 2)} → {num(med(v.get('after_ms')), 2)} ({num(v.get('healthy_median_ms'), 2)}) ms, ×{num(imp.get('ratio'))} | {r['outcome']} |")
+        lines += ["", "Source: `data/results/loops/<loop-id>/report.json`", ""]
+    return lines
 
 
 THREATS = """## Threats to validity
@@ -153,7 +171,31 @@ THREATS = """## Threats to validity
   granularity on the host; finer inside the Linux container).
 - **Class balance.** DB and cache faults have fewer runs (no severity levels). The ML models
   use balanced class weights, and macro-F1 weights every class equally.
+- **Docker image identity.** In the main campaign, Docker's image ID changed on every rebuild
+  of identical code (containerd image store), so the image rule could not be applied from
+  the recorded IDs. Layers, config and creation time were verified identical, and
+  `target-api/` had no commits during the campaign (protocol amendment 4).
 """
+
+
+def power_threat(campaigns: list[str]) -> list[str]:
+    """Power state of the runs (charger / battery), from data/raw/campaigns/<id>/power.json."""
+    lines = []
+    for cid in campaigns:
+        path = DATA_DIR / "raw" / "campaigns" / cid / "power.json"
+        if not path.exists():
+            continue
+        states = json.loads(path.read_text(encoding="utf-8"))["runs"].values()
+        counts = {s: sum(1 for x in states if x == s) for s in ("ac", "battery", "mixed", "unknown")}
+        lines.append(f"`{cid}`: {counts['ac']} runs on the charger, {counts['battery']} on battery, {counts['mixed']} switched during the run")
+    if not lines:
+        return []
+    return ["- **Laptop power state.** The experiment PC is a laptop; on battery Windows limits CPU boost, and healthy runs on "
+            "battery were ×1.6–2.3 slower than on the charger, while runs within one power state varied by 1–8 % (CV). "
+            + "; ".join(lines) + ". The run order was randomized, so the power state is not tied to any condition: it adds "
+            "noise (wider healthy baselines, weaker low-severity detection, wide verification intervals) rather than bias. "
+            "Since protocol amendment 5, runs on battery are excluded and campaigns refuse to start on battery. "
+            "Source: `data/raw/campaigns/<id>/power.json` (Windows Kernel-Power events).", ""]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -165,7 +207,8 @@ def main(argv: list[str] | None = None) -> int:
     lines = ["# Results", "",
              f"Generated by `python -m evaluation.report --main {args.main}" + (f" --heldout {args.heldout}" if args.heldout else "") + "` from the result files.",
              "Do not edit by hand: re-run the command instead. Protocol: [experiments/protocol.md](../experiments/protocol.md).", ""]
-    lines += dataset_section(args.main, args.heldout) + rq1(args.main, args.heldout) + rq2_to_rq5(args.main, args.heldout) + rq6(args.main) + [THREATS]
+    lines += dataset_section(args.main, args.heldout) + rq1(args.main, args.heldout) + rq2_to_rq5(args.main, args.heldout) + rq6(args.main) + [THREATS.rstrip("\n")]
+    lines += power_threat([c for c in (args.main, args.heldout) if c])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text("\n".join(lines), encoding="utf-8")
     print(f"results report: {args.output}")

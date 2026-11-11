@@ -118,6 +118,10 @@ class Lab:
           'indexes', (SELECT json_agg(indexname ORDER BY indexname) FROM pg_indexes WHERE schemaname = 'public'))"""
         return json.loads(self.psql(" ".join(sql.split())))
 
+    def ac_online(self) -> bool | None:
+        from .power import ac_online
+        return ac_online()
+
     def environment(self) -> dict[str, Any]:
         def safe(fn):
             try:
@@ -127,6 +131,9 @@ class Lab:
         return {
             "docker_server_version": safe(lambda: self._docker("version", "--format", "{{.Server.Version}}").strip()),
             "target_api_image_id": safe(self.image_id),
+            "power_plan": safe(lambda: subprocess.run(["powercfg", "/getactivescheme"], capture_output=True, text=True).stdout.strip())
+            if platform.system() == "Windows" else None,
+            "ac_online_at_start": safe(self.ac_online),
             "postgres_version": safe(lambda: self.psql("SHOW server_version;").strip()),
             "git_commit": safe(lambda: subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True).stdout.strip()),
             "git_dirty": safe(lambda: bool(subprocess.run(["git", "status", "--porcelain"], cwd=self.root, capture_output=True, text=True).stdout.strip())),

@@ -58,6 +58,8 @@ def preflight(config: dict[str, Any], runs: list[dict[str, Any]], lab, git_dirty
     """Checks before the first run: clean code (if required), right seed scale, variants known to the API."""
     if config.get("require_clean_git") and git_dirty:
         raise SystemExit("protocol: this campaign requires committed code (git status must be clean); commit first")
+    if exclusion_rules(config).get("require_ac_power") and hasattr(lab, "ac_online") and lab.ac_online() is False:
+        raise SystemExit("protocol: the machine is on battery; plug in the charger (runs on battery are excluded, rule 5)")
     seed = lab.seed_info()
     if seed.get("seed_scale") != config["seed_scale"]:
         raise SystemExit(f"campaign needs seed scale '{config['seed_scale']}', lab has '{seed.get('seed_scale')}': run scripts/lab-seed.sh {config['seed_scale']}")
@@ -92,7 +94,9 @@ class Executor:
         started_at = utc_now()
         experiment_id = None
         extra = extra or {}
+        power = []
         try:
+            power.append(self.lab.ac_online() if hasattr(self.lab, "ac_online") else None)
             self.lab.reset()
             self.lab.api_up({run["operation"]: run["variant"]}, f"{self.campaign_id}-r{run['run_index']:06d}")
             try:
@@ -104,6 +108,7 @@ class Executor:
                 (self.stats_dir / f"{experiment_id}.json").write_text(json.dumps(self.lab.db_statistics(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
             finally:
                 self.lab.api_down()
+            power.append(self.lab.ac_online() if hasattr(self.lab, "ac_online") else None)
             measured = summary["measured"]
             correlation = summary["telemetry_correlation"]
             if label:
@@ -118,7 +123,8 @@ class Executor:
                 "started_at": started_at, "ended_at": utc_now(), "wall_seconds": round(time.monotonic() - started, 2),
                 "measured_requests": measured["total_requests"], "failed_requests": measured["failed_requests"],
                 "send_lag_p99_ms": (measured.get("send_lag_ms") or {}).get("p99_ms"),
-                "correlation_status": correlation["correlation_status"], "image_id": image_id, **extra,
+                "correlation_status": correlation["correlation_status"], "image_id": image_id,
+                "ac_power": False if False in power else (True if all(power) else None), **extra,
             })
             p50 = measured["median_ms"]
             self.log(f"    done in {time.monotonic() - started:.0f} s: {measured['total_requests']} requests, "

@@ -430,6 +430,36 @@ All numbers below were recounted directly from the raw files during the audit.
 These numbers show that the pipeline works end to end. **They are not evidence
 that bottleneck detection works.**
 
+### Main campaign and analysis (11 Nov 2026)
+
+Campaign `main-20261111T100109-be3c28`: 220 planned runs, shuffled, from commit `4c0f60d`.
+Results: `docs/results.md` (generated) and `data/results/*/main-20261111T100109-be3c28/`.
+
+- **Incidents, all handled by protocol rules and recorded as amendments:**
+  - Docker Desktop gave the image a new ID on every rebuild of identical code, so all runs
+    were falsely excluded. Fixed in `810966a`: content hash, no rebuild per run.
+  - PostgreSQL restarted once during a reset, so 2 runs failed. They were completed with
+    `--resume`, and the reset now retries.
+  - 24 runs exceeded the client send-lag limit, mostly while analysis ran on the same PC.
+    They were re-run once and all re-runs passed.
+- **Laptop power state.** The charger was connected and disconnected five times. Healthy
+  latency on battery is ×1.6–2.3 higher; within one power state the CV is 1–8 %. The team
+  kept the campaign and reports this as a threat. Rule 5 (no runs on battery) applies from
+  the held-out session on.
+- **Detection:** false alarms 4/80 (5.0 %), detection 103/110 (93.6 %). Misses are the weakest
+  severities (users.get nplus1:3, dashboard cpu:20).
+- **Diagnosis:**
+  - Rules: 110/110.
+  - Random Forest: L1 0.29, L3 0.55, L4 0.95 macro-F1. Database and cache tracing (L4) is
+    what makes ML work (RQ3).
+  - XGBoost L4: 0.67, weak on CACHE_OPPORTUNITY.
+- **Remediation and verification:**
+  - Right fix for 110/110 runs.
+  - 7/10 fixes significantly improved latency; 0/10 were shown back to healthy (wide
+    intervals).
+  - Two closed loops (users.list N+1, orders.list missing index) were each verified end to end.
+- **Dashboard:** built with `next build` and checked against these results.
+
 ## Known issues
 
 1. **Too little data.**

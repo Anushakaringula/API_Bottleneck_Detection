@@ -12,15 +12,13 @@ per phase, merged to `main` after review.
 
 | Stage | Observe | Detect | Diagnose | Remediate | Re-run | Verify | Dashboard |
 |---|---|---|---|---|---|---|---|
-| Status | ✅ | 🟡 | 🟡 | 🟡 | ✅ | 🟡 | ⬜ |
+| Status | ✅ | ✅ | ✅ | ✅ | ✅ | 🟡 | ✅ |
 
-- **Observe ✅:** telemetry, workload generator, lab and faults are built and verified.
-- **Remediate 🟡:** the fixed variants exist; the recommendation engine does not.
-- **Re-run ✅:** any workload can be repeated exactly from its seed.
-- **Detect, Diagnose, Verify, Dashboard ⬜:** not started.
-
-The data-generation platform is complete. The analysis side (detection, diagnosis, ML,
-remediation engine, verification, dashboard) has not started.
+Every stage is built and has run on the main campaign (220 runs), including two real closed
+loops (inject → detect → diagnose → fix → re-run → verified). **Verify 🟡:** 7/10 fixes shown
+to improve, none shown back to healthy within ±10 %; the laptop's charger/battery switching
+widened the intervals (see Key measurements). Final numbers: held-out session (another day,
+on the charger).
 
 ## Phases
 
@@ -34,14 +32,14 @@ remediation engine, verification, dashboard) has not started.
 | 3.5C-2 | Domain API (9 operations), deterministic seed up to 1M orders, variant registry, API in Docker | `cfa029e` | lab tests 5/5; seed byte-identical | ✅ |
 | 3.5C-3 | Faults × 2 operations each, with fixed variants and severities | `7c2f018` | 10/10 fault checks, 3/3 severity ladders | ✅ |
 | 3.5D-1 | Campaign orchestrator, ground-truth labels, pilot campaign + pilot report, protocol draft | `0275bbb` | pilot 48/48 runs, 100 % requests matched; noise and effects measured | ✅ |
-| 3.5D-2 | Protocol v1 frozen (team decision), rules enforced in code, main campaign (220 runs) + held-out session (68 runs, another day) | — | data-quality report clean; exclusions reported | 🔄 tooling ready; main campaign starts after this commit |
+| 3.5D-2 | Protocol v1 frozen (team decision), rules enforced in code, main campaign (220 runs) + held-out session (68 runs, another day) | `4c0f60d`, `810966a` | data-quality report clean; exclusions reported | 🔄 main campaign done (`main-20261111T100109-be3c28`, 220 + 24 re-runs, 0 failed requests); held-out session open |
 | Analyzer v2 | Run-level features from request telemetry, 30 features in levels L1–L4, label-free (`pipeline/features/`) | committed | every pilot fault visible in its mechanism feature; tests 5/5 | ✅ |
-| 4 | Detection: detector of record (protocol rule), verdicts with evidence, leave-one-out scoring, label access isolated (`pipeline/detection/`, `pipeline/evaluation/`) | committed | pilot dev check: 0/24 false alarms, 20/20 detected; final: main → held-out | 🔄 code done; waits for main-campaign data |
-| 5 | Diagnosis: mechanism rules with evidence vs Random Forest / XGBoost on baseline-relative features, L1–L4, grouped + leave-one-operation-out CV, abstention (`pipeline/diagnosis/`) | `6aa367a` | all methods on identical runs and splits; pilot dev check runs end to end | 🔄 code done; waits for main-campaign data |
-| 6 | Remediation catalogue + recommender (class → fix variant, expected effect, evidence) (`pipeline/remediation/`) | `c4855f5` | every recommendation traceable to its evidence; pilot: right fix 20/20 | 🔄 code done; waits for main-campaign data |
-| 7 | Verification: Welch on log latency (Holm), TOST back-to-healthy (±10 %), mechanism check; closed-loop demo `campaign.loop` (`pipeline/verification/`) | `c4855f5` | results for every fixed variant; pilot: 2/2 improved | 🔄 code done; waits for main-campaign data |
-| 8 | Dashboard (Next.js 16, read-only over result files): overview, endpoint evidence, closed-loop page; `scripts/analyze-campaign.sh` (one command: summary → features → detection → diagnosis → verification) | `43608ed` | every number traceable to a file | 🔄 code done; `npm install` + build after the main campaign (keeps the measurements clean) |
-| 9 | Results report generated from result files, one section per RQ + threats to validity (`python -m evaluation.report` → `docs/results.md`) | (to commit) | every claim points to a result file | 🔄 generator done; numbers after the main campaign (final after held-out) |
+| 4 | Detection: detector of record (protocol rule), verdicts with evidence, leave-one-out scoring, label access isolated (`pipeline/detection/`, `pipeline/evaluation/`) | committed | main: false alarms 4/80 = 5.0 % (limit ≤ 5 %), detected 103/110 = 93.6 % | ✅ dev numbers; final on held-out |
+| 5 | Diagnosis: mechanism rules with evidence vs Random Forest / XGBoost on baseline-relative features, L1–L4, grouped + leave-one-operation-out CV, abstention (`pipeline/diagnosis/`) | `6aa367a` | main: rules macro-F1 1.000; RF L4 0.946 (0.955 operation unseen); L1 ≈ 0.29 | ✅ dev numbers; final on held-out |
+| 6 | Remediation catalogue + recommender (class → fix variant, expected effect, evidence) (`pipeline/remediation/`) | `c4855f5` | main: right fix 110/110 | ✅ |
+| 7 | Verification: Welch on log latency (Holm), TOST back-to-healthy (±10 %), mechanism check; closed-loop demo `campaign.loop` (`pipeline/verification/`) | `c4855f5` | main: 7/10 improved (Holm), 0/10 back to healthy; 2/2 closed loops verified | 🟡 power noise (amendment 5) |
+| 8 | Dashboard (Next.js 16, read-only over result files): overview, endpoint evidence, closed-loop page; `scripts/analyze-campaign.sh` (one command: summary → features → detection → diagnosis → verification) | `43608ed` | every number traceable to a file | ✅ built; pages checked against the main results |
+| 9 | Results report generated from result files, one section per RQ + threats to validity (`python -m evaluation.report` → `docs/results.md`) | `99466a5` + (to commit) | every claim points to a result file | 🔄 `docs/results.md` with main numbers; final after held-out |
 
 Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 
@@ -59,7 +57,8 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Diagnosis | `pipeline/diagnosis/` | Baseline-relative features, mechanism rules with evidence, RF / XGBoost with abstention; evaluated per level L1–L4; [README](pipeline/diagnosis/README.md) |
 | Detection | `pipeline/detection/`, `pipeline/evaluation/` | Protocol rule per operation, verdicts with evidence, false-alarm / detection rates with 95 % CIs; only `evaluation/labels.py` reads labels; [README](pipeline/detection/README.md) |
 | Features (Analyzer v2) | `pipeline/features/` | 30 run features in L1–L4 (client, server, runtime, database/cache), interval-union database time, metadata kept apart; [README](pipeline/features/README.md) |
-| Tests | `scripts/test-all.sh`, `npm run test:lab`, `npm run lab:fault-checks` | 16 (+5 lab) / 22 / 14 pass; lab 5/5; fault checks 10/10 |
+| Results | `docs/results.md` (generated), `data/results/` | One section per RQ + threats to validity; `python -m evaluation.report --main <id> [--heldout <id>]` |
+| Tests | `scripts/test-all.sh`, `npm run test:lab`, `npm run lab:fault-checks` | 16 / 23 / 18 / 5 / 7 / 7 / 6 / 14 pass; lab 5/5; fault checks 10/10 |
 
 ### Injected faults (Phase 3.5C-3)
 
@@ -84,6 +83,12 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Pilot: healthy noise (CV of run p50) | **server-side 0.2–8.3 %** vs client-side 4–24 % → 2–3 vs up to 23 repeats for a 20 % slowdown | same |
 | Pilot: faults vs healthy (server run p50) | **10/10 fully separated**, ×2.0 (products.get cache) to ×87.9 (reports cache); client-side 9/10 | same |
 | Pilot: fixed variants | back at healthy level: ×0.90 (reports cache-fixed), ×0.99 (users.list nplus1-fixed) | same |
+| **Main campaign** (220 runs + 24 re-runs, ~4.5 h) | 35,612/35,612 requests matched to spans; 0 failed requests; 24 runs excluded (send lag) and re-run; 2 runs failed once (PostgreSQL restart) and completed on resume | `data/results/campaigns/main-20261111T100109-be3c28/` |
+| Main: detection (RQ1) | false alarms **4/80 = 5.0 %** (CI 2.0–12.2 %), detected **103/110 = 93.6 %** (CI 87.4–96.9 %), precision 96.3 %; misses: users.get nplus1:3, dashboard cpu:20 | `data/results/detection/main-20261111T100109-be3c28/` |
+| Main: diagnosis (RQ2–5) | rules **110/110** (macro-F1 1.000); RF L1 0.29 → L3 0.55 → L4 0.95; XGB L4 0.67; RF at confidence 0.5: 84 % coverage, 100 % accurate | `data/results/diagnosis/main-20261111T100109-be3c28/` |
+| Main: remediation + verification (RQ6) | right fix 110/110; **7/10** fixes improved (Holm α 0.05); 0/10 shown within ±10 % of healthy | `data/results/verification/main-20261111T100109-be3c28/` |
+| Closed loops | users.list nplus1:20 → N_PLUS_ONE → fixed: 24.05 → 5.11 ms (healthy 4.45); orders.list noindex → DB_BOTTLENECK → fixed: 86.20 → 5.31 ms (healthy 5.05); both verified | `data/results/loops/` |
+| Power state (main) | 100 runs on charger, 137 on battery, 7 mixed; healthy on battery ×1.6–2.3 slower; within one state CV 1–8 % | `data/raw/campaigns/main-20261111T100109-be3c28/power.json` |
 
 ## Decisions
 
@@ -101,6 +106,8 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | 11 Nov | Protocol draft: main 220 runs, held-out 68 runs, exclusion rules, discarded warm-up run | Pilot noise and effect sizes (`experiments/protocol.md`) |
 | 11 Nov | **Protocol v1 frozen by team decision** with the pilot-supported values: anomalous = server-side run p50 > max(P99 healthy, 1.2 × healthy median); false alarms ≤ 5 %; back-to-healthy ± 10 %; preliminary thresholds 4.4–23.6 ms per operation | Pilot: every fault run above its threshold, both fixed variants below; to be presented to Prof. Sagar |
 | 11 Nov | Protocol rules enforced in code (clean git, discarded warm-up run, exclusions with one re-run) | Rules applied automatically, not by hand |
+| 11 Nov | Image rule compares a content hash (layers + config); API no longer rebuilt per run; reset retried after a PostgreSQL restart (amendment 4) | Docker Desktop changes the image ID on every build of identical code: all 218 runs were falsely excluded |
+| 11 Nov | Runs on battery excluded, campaigns refuse to start on battery (rule 5, amendment 5); main campaign kept as is and the power mix reported as a threat (team decision) | Healthy latency ×1.6–2.3 higher on battery; a 4 h re-run was not worth the delay |
 | 11 Nov | Diagnosis evaluated on fault runs only (detection handles healthy vs faulty); CI and the experiment PC on Python 3.12 (`requirements.txt`: scikit-learn 1.9.1, XGBoost 3.4.1) | Detection → diagnosis is the architecture; numpy 2.5 needs Python 3.11+ |
 
 ## Open items
@@ -111,13 +118,14 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Push `develop` and check the GitHub Actions run | team | open |
 | Rotate Neon and Redis Cloud passwords (pasted in chat) | team | open |
 | Present protocol v1 (`experiments/protocol.md` §9, adopted by the team on 11 Nov) to Prof. Sagar; record any requested change as an amendment | team | open |
-| Run the held-out session on a different day than the main campaign | team | after the main campaign |
+| Run the held-out session on a different day, **charger plugged in the whole time** (~75 min) | team | open |
 
 ## Next steps
 
-1. Commit this step. Then run the **main campaign** (220 runs, about 4 h, from the committed tree).
-2. Analyzer v2 done (pilot features verified). When the main campaign ends: `python -m features.extract <main-id>`.
-3. **Held-out session** (68 runs) on another day.
-4. When the main campaign ends: `scripts/analyze-campaign.sh <main-id>`, the closed-loop demo, then `npm install` and a build of the dashboard.
-5. Held-out session → final detection and diagnosis numbers.
-6. `python -m evaluation.report --main <main-id>` → `docs/results.md`; after the held-out session add `--heldout <id>` for the final numbers. Related-work chapter (GA-Prof, RCA surveys) for the thesis.
+1. Commit this step.
+2. **Held-out session** (another day, charger plugged in; the campaign refuses to start on battery):
+   `python -m campaign.run --config experiments/configs/campaigns/heldout.json` (68 runs, ~75 min).
+3. `scripts/analyze-campaign.sh <heldout-id> --train main-20261111T100109-be3c28` → final detection and diagnosis.
+4. `python -m evaluation.report --main main-20261111T100109-be3c28 --heldout <heldout-id>` → final `docs/results.md`.
+5. Thesis chapters from `docs/results.md`; related work (GA-Prof, RCA surveys); demo with the dashboard
+   (`cd dashboard && npm run dev`) and `python -m campaign.loop`.

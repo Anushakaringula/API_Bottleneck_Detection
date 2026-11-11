@@ -12,6 +12,7 @@ DEFAULT_EXCLUSION = {
     "require_complete_correlation": True,
     "max_failed_fraction": 0.01,
     "max_send_lag_p99_ms": 10.0,
+    "require_ac_power": False,
 }
 
 
@@ -34,6 +35,8 @@ def exclusion_reasons(record: dict[str, Any], environment: dict[str, Any], rules
     lag = record.get("send_lag_p99_ms")
     if lag is None or lag > rules["max_send_lag_p99_ms"]:
         reasons.append(f"client send-lag p99 {lag if lag is None else round(lag, 1)} ms > {rules['max_send_lag_p99_ms']} ms")
+    if rules.get("require_ac_power") and record.get("ac_power") is False:
+        reasons.append("power: on battery during the run (CPU boost limited)")
     if environment.get("git_dirty") is True:
         reasons.append("code: uncommitted changes (git_dirty)")
     # Only content identities (lab.image_id) are comparable. Campaigns recorded before
