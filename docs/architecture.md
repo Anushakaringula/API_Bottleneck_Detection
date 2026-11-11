@@ -44,6 +44,7 @@ pipeline/                      investigation system (steps 4–7)
   evaluation/                  scoring; labels.py is the only reader of ground truth
 data/                          data handed between stages (see data/README.md)
 scripts/                       env.sh, test-all.sh, verify-legacy.sh, compare_manifest.py, lab-up/down/reset/status.sh
+dashboard/                     Phase 8: Next.js read-only dashboard over data/results
 docs/                          documentation
 ```
 
@@ -57,7 +58,6 @@ docs/                          documentation
 | `pipeline/remediation/` | 6 | Fix recommendations |
 | `pipeline/verification/` | 7 | Before-and-after verification |
 | `pipeline/evaluation/` | 9 | Evaluation; also owns the label-access module |
-| `dashboard/` | 8 | Next.js dashboard |
 | `observability/` | Optional | Only if Collector, Prometheus or Grafana configs are added |
 
 ## Detection and diagnosis

@@ -27,6 +27,7 @@ from typing import Any
 from diagnosis import CLASSES, INSUFFICIENT, ml
 from diagnosis.relative import relative_table
 from diagnosis.rules import diagnose
+from remediation.catalogue import recommend
 from features.schema import LEVELS, features_at_level
 from sklearn.metrics import confusion_matrix, f1_score
 from sklearn.model_selection import GroupKFold
@@ -102,7 +103,11 @@ def evaluate(campaign_id: str, train_id: str, features_dir: Path, labels_dir: Pa
         "class_counts": {c: truth.count(c) for c in CLASSES},
         "rules": {"metrics": metrics(truth, [d["diagnosis"] for d in rule_results]),
                   "misdiagnosed": [{"experiment_id": r["experiment_id"], "condition": r["condition"], "diagnosis": d["diagnosis"], "fired": d["fired"]}
-                                   for r, d in zip(test, rule_results) if d["diagnosis"] != r["truth"]]},
+                                   for r, d in zip(test, rule_results) if d["diagnosis"] != r["truth"]],
+                  # Per run, for the dashboard: what the rules concluded, why, and which fix follows.
+                  "per_run": [{"experiment_id": r["experiment_id"], "condition": r["condition"], "operation": r["operation"], "truth": r["truth"],
+                               "diagnosis": d["diagnosis"], "confidence": d["confidence"], "evidence": d["evidence"],
+                               "recommendation": recommend(d)} for r, d in zip(test, rule_results)]},
         "ml": {},
     }
     final = train_id != campaign_id

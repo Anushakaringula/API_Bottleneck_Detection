@@ -108,6 +108,14 @@ cat data/results/calibration/*/report.md
 The report states the highest rate at which the client keeps to its timetable
 (send lag p99 ≤ 5 ms, no failures, rate within 2 %).
 
+### Analyse a campaign in one command
+
+```sh
+scripts/analyze-campaign.sh <main-id>                       # summary, features, detection, diagnosis, verification
+scripts/analyze-campaign.sh <heldout-id> --train <main-id>  # final evaluation
+cd dashboard && npm install && npm run dev                 # http://localhost:3001
+```
+
 ## 3. Analyze the experiments
 
 ```sh
