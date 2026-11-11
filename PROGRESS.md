@@ -12,7 +12,7 @@ per phase, merged to `main` after review.
 
 | Stage | Observe | Detect | Diagnose | Remediate | Re-run | Verify | Dashboard |
 |---|---|---|---|---|---|---|---|
-| Status | ✅ | ⬜ | ⬜ | 🟡 | ✅ | ⬜ | ⬜ |
+| Status | ✅ | 🟡 | ⬜ | 🟡 | ✅ | ⬜ | ⬜ |
 
 - **Observe ✅:** telemetry, workload generator, lab and faults are built and verified.
 - **Remediate 🟡:** the fixed variants exist; the recommendation engine does not.
@@ -35,8 +35,8 @@ remediation engine, verification, dashboard) has not started.
 | 3.5C-3 | Faults × 2 operations each, with fixed variants and severities | `7c2f018` | 10/10 fault checks, 3/3 severity ladders | ✅ |
 | 3.5D-1 | Campaign orchestrator, ground-truth labels, pilot campaign + pilot report, protocol draft | `0275bbb` | pilot 48/48 runs, 100 % requests matched; noise and effects measured | ✅ |
 | 3.5D-2 | Protocol v1 frozen (team decision), rules enforced in code, main campaign (220 runs) + held-out session (68 runs, another day) | — | data-quality report clean; exclusions reported | 🔄 tooling ready; main campaign starts after this commit |
-| Analyzer v2 | Run-level features from request telemetry, 30 features in levels L1–L4, label-free (`pipeline/features/`) | (to commit) | every pilot fault visible in its mechanism feature; tests 5/5 | ✅ verified, to commit |
-| 4 | Detection: normal / anomalous / inconclusive against healthy baselines | — | false-alarm and detection rates on held-out data | ⬜ |
+| Analyzer v2 | Run-level features from request telemetry, 30 features in levels L1–L4, label-free (`pipeline/features/`) | committed | every pilot fault visible in its mechanism feature; tests 5/5 | ✅ |
+| 4 | Detection: detector of record (protocol rule), verdicts with evidence, leave-one-out scoring, label access isolated (`pipeline/detection/`, `pipeline/evaluation/`) | (to commit) | pilot dev check: 0/24 false alarms, 20/20 detected; final: main → held-out | 🔄 code done; waits for main-campaign data |
 | 5 | Diagnosis: rules → Random Forest / XGBoost, abstention, L1–L4 | — | all methods on identical runs and splits | ⬜ |
 | 6 | Remediation engine (fault → fix), applied by switching to the fixed variant | — | every recommendation traceable to its evidence | ⬜ |
 | 7 | Verification: paired before/after runs, statistics, back to healthy | — | results for every fault | ⬜ |
@@ -54,6 +54,7 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Lab | `infrastructure/`, `scripts/lab-*.sh` | Pinned containers on 127.0.0.1 with fixed limits; up / seed / reset (~3 s) / status / probe / api. [README](infrastructure/README.md) |
 | Workload runner | `experiments/experiment_runner/` | Closed and open loop, Poisson, rate stages, request variants, send lag, traceparent, calibration |
 | Telemetry analysis | `pipeline/telemetry_analysis/` | Run-level client features, labels kept apart, leakage checks, request-to-span join |
+| Detection | `pipeline/detection/`, `pipeline/evaluation/` | Protocol rule per operation, verdicts with evidence, false-alarm / detection rates with 95 % CIs; only `evaluation/labels.py` reads labels; [README](pipeline/detection/README.md) |
 | Features (Analyzer v2) | `pipeline/features/` | 30 run features in L1–L4 (client, server, runtime, database/cache), interval-union database time, metadata kept apart; [README](pipeline/features/README.md) |
 | Tests | `scripts/test-all.sh`, `npm run test:lab`, `npm run lab:fault-checks` | 16 (+5 lab) / 22 / 14 pass; lab 5/5; fault checks 10/10 |
 

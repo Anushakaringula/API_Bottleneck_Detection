@@ -145,6 +145,7 @@ Expected results after Phase 3.5D-1:
 | Experiment runner | 23 tests pass |
 | Campaign | 14 tests pass (fake lab, no Docker) |
 | Features | 5 tests pass |
+| Detection | 7 tests pass (incl. import-boundary rules) |
 | Telemetry analysis | 14 tests pass |
 | `verify-legacy.sh` | Prints two proxy-leakage warnings (`p95_latency_ms`, `p99_latency_ms`), which are expected for the legacy data |
 
