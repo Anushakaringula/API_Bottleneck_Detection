@@ -40,8 +40,8 @@ remediation engine, verification, dashboard) has not started.
 | 5 | Diagnosis: mechanism rules with evidence vs Random Forest / XGBoost on baseline-relative features, L1–L4, grouped + leave-one-operation-out CV, abstention (`pipeline/diagnosis/`) | `6aa367a` | all methods on identical runs and splits; pilot dev check runs end to end | 🔄 code done; waits for main-campaign data |
 | 6 | Remediation catalogue + recommender (class → fix variant, expected effect, evidence) (`pipeline/remediation/`) | `c4855f5` | every recommendation traceable to its evidence; pilot: right fix 20/20 | 🔄 code done; waits for main-campaign data |
 | 7 | Verification: Welch on log latency (Holm), TOST back-to-healthy (±10 %), mechanism check; closed-loop demo `campaign.loop` (`pipeline/verification/`) | `c4855f5` | results for every fixed variant; pilot: 2/2 improved | 🔄 code done; waits for main-campaign data |
-| 8 | Dashboard (Next.js 16, read-only over result files): overview, endpoint evidence, closed-loop page; `scripts/analyze-campaign.sh` (one command: summary → features → detection → diagnosis → verification) | (to commit) | every number traceable to a file | 🔄 code done; `npm install` + build after the main campaign (keeps the measurements clean) |
-| 9 | Evaluation and report | — | every claim points to a result file | ⬜ |
+| 8 | Dashboard (Next.js 16, read-only over result files): overview, endpoint evidence, closed-loop page; `scripts/analyze-campaign.sh` (one command: summary → features → detection → diagnosis → verification) | `43608ed` | every number traceable to a file | 🔄 code done; `npm install` + build after the main campaign (keeps the measurements clean) |
+| 9 | Results report generated from result files, one section per RQ + threats to validity (`python -m evaluation.report` → `docs/results.md`) | (to commit) | every claim points to a result file | 🔄 generator done; numbers after the main campaign (final after held-out) |
 
 Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 
@@ -120,4 +120,4 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 3. **Held-out session** (68 runs) on another day.
 4. When the main campaign ends: `scripts/analyze-campaign.sh <main-id>`, the closed-loop demo, then `npm install` and a build of the dashboard.
 5. Held-out session → final detection and diagnosis numbers.
-6. Report (Phase 9): results per research question, threats to validity, related work.
+6. `python -m evaluation.report --main <main-id>` → `docs/results.md`; after the held-out session add `--heldout <id>` for the final numbers. Related-work chapter (GA-Prof, RCA surveys) for the thesis.

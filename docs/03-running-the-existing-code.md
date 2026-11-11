@@ -114,6 +114,7 @@ The report states the highest rate at which the client keeps to its timetable
 scripts/analyze-campaign.sh <main-id>                       # summary, features, detection, diagnosis, verification
 scripts/analyze-campaign.sh <heldout-id> --train <main-id>  # final evaluation
 cd dashboard && npm install && npm run dev                 # http://localhost:3001
+python -m evaluation.report --main <main-id> [--heldout <heldout-id>]   # docs/results.md, one section per research question
 ```
 
 ## 3. Analyze the experiments
