@@ -12,7 +12,7 @@ per phase, merged to `main` after review.
 
 | Stage | Observe | Detect | Diagnose | Remediate | Re-run | Verify | Dashboard |
 |---|---|---|---|---|---|---|---|
-| Status | ✅ | 🟡 | 🟡 | 🟡 | ✅ | ⬜ | ⬜ |
+| Status | ✅ | 🟡 | 🟡 | 🟡 | ✅ | 🟡 | ⬜ |
 
 - **Observe ✅:** telemetry, workload generator, lab and faults are built and verified.
 - **Remediate 🟡:** the fixed variants exist; the recommendation engine does not.
@@ -37,9 +37,9 @@ remediation engine, verification, dashboard) has not started.
 | 3.5D-2 | Protocol v1 frozen (team decision), rules enforced in code, main campaign (220 runs) + held-out session (68 runs, another day) | — | data-quality report clean; exclusions reported | 🔄 tooling ready; main campaign starts after this commit |
 | Analyzer v2 | Run-level features from request telemetry, 30 features in levels L1–L4, label-free (`pipeline/features/`) | committed | every pilot fault visible in its mechanism feature; tests 5/5 | ✅ |
 | 4 | Detection: detector of record (protocol rule), verdicts with evidence, leave-one-out scoring, label access isolated (`pipeline/detection/`, `pipeline/evaluation/`) | committed | pilot dev check: 0/24 false alarms, 20/20 detected; final: main → held-out | 🔄 code done; waits for main-campaign data |
-| 5 | Diagnosis: mechanism rules with evidence vs Random Forest / XGBoost on baseline-relative features, L1–L4, grouped + leave-one-operation-out CV, abstention (`pipeline/diagnosis/`) | (to commit) | all methods on identical runs and splits; pilot dev check runs end to end | 🔄 code done; waits for main-campaign data |
-| 6 | Remediation engine (fault → fix), applied by switching to the fixed variant | — | every recommendation traceable to its evidence | ⬜ |
-| 7 | Verification: paired before/after runs, statistics, back to healthy | — | results for every fault | ⬜ |
+| 5 | Diagnosis: mechanism rules with evidence vs Random Forest / XGBoost on baseline-relative features, L1–L4, grouped + leave-one-operation-out CV, abstention (`pipeline/diagnosis/`) | `6aa367a` | all methods on identical runs and splits; pilot dev check runs end to end | 🔄 code done; waits for main-campaign data |
+| 6 | Remediation catalogue + recommender (class → fix variant, expected effect, evidence) (`pipeline/remediation/`) | (to commit) | every recommendation traceable to its evidence; pilot: right fix 20/20 | 🔄 code done; waits for main-campaign data |
+| 7 | Verification: Welch on log latency (Holm), TOST back-to-healthy (±10 %), mechanism check; closed-loop demo `campaign.loop` (`pipeline/verification/`) | (to commit) | results for every fixed variant; pilot: 2/2 improved | 🔄 code done; waits for main-campaign data |
 | 8 | Dashboard (Next.js) | — | every number traceable to a run | ⬜ |
 | 9 | Evaluation and report | — | every claim points to a result file | ⬜ |
 
@@ -54,6 +54,7 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Lab | `infrastructure/`, `scripts/lab-*.sh` | Pinned containers on 127.0.0.1 with fixed limits; up / seed / reset (~3 s) / status / probe / api. [README](infrastructure/README.md) |
 | Workload runner | `experiments/experiment_runner/` | Closed and open loop, Poisson, rate stages, request variants, send lag, traceparent, calibration |
 | Telemetry analysis | `pipeline/telemetry_analysis/` | Run-level client features, labels kept apart, leakage checks, request-to-span join |
+| Remediation + verification | `pipeline/remediation/`, `pipeline/verification/`, `experiments/campaign/loop.py` | Fix catalogue, recommender, before/after statistics, closed-loop demo; [README](pipeline/verification/README.md) |
 | Diagnosis | `pipeline/diagnosis/` | Baseline-relative features, mechanism rules with evidence, RF / XGBoost with abstention; evaluated per level L1–L4; [README](pipeline/diagnosis/README.md) |
 | Detection | `pipeline/detection/`, `pipeline/evaluation/` | Protocol rule per operation, verdicts with evidence, false-alarm / detection rates with 95 % CIs; only `evaluation/labels.py` reads labels; [README](pipeline/detection/README.md) |
 | Features (Analyzer v2) | `pipeline/features/` | 30 run features in L1–L4 (client, server, runtime, database/cache), interval-union database time, metadata kept apart; [README](pipeline/features/README.md) |
@@ -116,6 +117,6 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 1. Commit this step. Then run the **main campaign** (220 runs, about 4 h, from the committed tree).
 2. Analyzer v2 done (pilot features verified). When the main campaign ends: `python -m features.extract <main-id>`.
 3. **Held-out session** (68 runs) on another day.
-4. When the main campaign ends: features → detection → diagnosis on it (development numbers).
+4. When the main campaign ends: features → detection → diagnosis → verification on it, and the closed-loop demo.
 5. Held-out session → final detection and diagnosis numbers.
-6. Remediation (Phase 6) → verification (Phase 7) → dashboard → report.
+6. Dashboard (Phase 8) → report (Phase 9).

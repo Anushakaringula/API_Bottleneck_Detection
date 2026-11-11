@@ -177,4 +177,5 @@ compared against it.
 | Date | Change | Reason |
 |---|---|---|
 | 11 Nov 2026 | Draft → v1 frozen; §9 values adopted by the team as proposed; preliminary thresholds added | team decision to proceed with the pilot-supported values; to be presented to Prof. Sagar |
+| 11 Nov 2026 | §8 verification statistics: unpaired one-sided Welch t-test on log server-side run p50 (Holm across pairs) with exact Mann-Whitney as a check, and TOST equivalence (90 % CI within ±10 %), instead of a paired Wilcoxon test | faulty and fixed runs are independent runs, not pairs; with 5 vs 3 runs the exact rank test's smallest p (1/56) cannot pass a Holm correction over 10 pairs |
 | 11 Nov 2026 | §6/§7 enforced in code: `require_clean_git`, `discard_warmup_runs`, `rerun_excluded`, `apply_exclusions` (`experiments/campaign/run.py`, `quality.py`); campaign configs `main.json`, `heldout.json` | the rules are applied automatically and reported, not by hand |

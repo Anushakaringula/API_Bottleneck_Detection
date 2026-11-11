@@ -39,6 +39,8 @@ pipeline/                      investigation system (steps 4–7)
   features/                    step 4 (Analyzer v2): run features L1–L4 per campaign, label-free
   detection/                   Phase 4: detector of record (protocol rule), verdicts with evidence
   diagnosis/                   Phase 5: baseline-relative features, mechanism rules, RF / XGBoost
+  remediation/                 Phase 6: class -> fix catalogue and recommender
+  verification/                Phase 7: before/after statistics (Welch on log latency, TOST)
   evaluation/                  scoring; labels.py is the only reader of ground truth
 data/                          data handed between stages (see data/README.md)
 scripts/                       env.sh, test-all.sh, verify-legacy.sh, compare_manifest.py, lab-up/down/reset/status.sh

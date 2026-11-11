@@ -96,6 +96,12 @@ manifest and per run.
 The requests sent to each operation (paths, parameters) are fixed in `plan.py`
 (`OPERATION_REQUESTS`).
 
+## Closed-loop demo
+
+`python -m campaign.loop --operation users.list --variant nplus1:20 --baseline-campaign <main-id>`:
+inject a fault the system is not told about → detect → diagnose → recommend → apply the fix → re-run → verify
+(see `pipeline/verification/README.md`).
+
 ## Tests
 
 ```sh

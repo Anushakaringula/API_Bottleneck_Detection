@@ -143,10 +143,11 @@ Expected results after Phase 3.5D-1:
 |---|---|
 | Target API | 16 tests pass, 5 skipped (lab integration tests: `ABR_LAB_TESTS=1 npm run test:lab` against a seeded lab, 5 pass) |
 | Experiment runner | 23 tests pass |
-| Campaign | 14 tests pass (fake lab, no Docker) |
+| Campaign | 15 tests pass (fake lab, no Docker; includes the closed loop) |
 | Features | 5 tests pass |
 | Detection | 7 tests pass (incl. import-boundary rules) |
 | Diagnosis | 7 tests pass (needs `pip install -r requirements.txt`) |
+| Verification | 6 tests pass |
 | Telemetry analysis | 14 tests pass |
 | `verify-legacy.sh` | Prints two proxy-leakage warnings (`p95_latency_ms`, `p99_latency_ms`), which are expected for the legacy data |
 
