@@ -12,7 +12,7 @@ per phase, merged to `main` after review.
 
 | Stage | Observe | Detect | Diagnose | Remediate | Re-run | Verify | Dashboard |
 |---|---|---|---|---|---|---|---|
-| Status | ✅ | 🟡 | ⬜ | 🟡 | ✅ | ⬜ | ⬜ |
+| Status | ✅ | 🟡 | 🟡 | 🟡 | ✅ | ⬜ | ⬜ |
 
 - **Observe ✅:** telemetry, workload generator, lab and faults are built and verified.
 - **Remediate 🟡:** the fixed variants exist; the recommendation engine does not.
@@ -36,8 +36,8 @@ remediation engine, verification, dashboard) has not started.
 | 3.5D-1 | Campaign orchestrator, ground-truth labels, pilot campaign + pilot report, protocol draft | `0275bbb` | pilot 48/48 runs, 100 % requests matched; noise and effects measured | ✅ |
 | 3.5D-2 | Protocol v1 frozen (team decision), rules enforced in code, main campaign (220 runs) + held-out session (68 runs, another day) | — | data-quality report clean; exclusions reported | 🔄 tooling ready; main campaign starts after this commit |
 | Analyzer v2 | Run-level features from request telemetry, 30 features in levels L1–L4, label-free (`pipeline/features/`) | committed | every pilot fault visible in its mechanism feature; tests 5/5 | ✅ |
-| 4 | Detection: detector of record (protocol rule), verdicts with evidence, leave-one-out scoring, label access isolated (`pipeline/detection/`, `pipeline/evaluation/`) | (to commit) | pilot dev check: 0/24 false alarms, 20/20 detected; final: main → held-out | 🔄 code done; waits for main-campaign data |
-| 5 | Diagnosis: rules → Random Forest / XGBoost, abstention, L1–L4 | — | all methods on identical runs and splits | ⬜ |
+| 4 | Detection: detector of record (protocol rule), verdicts with evidence, leave-one-out scoring, label access isolated (`pipeline/detection/`, `pipeline/evaluation/`) | committed | pilot dev check: 0/24 false alarms, 20/20 detected; final: main → held-out | 🔄 code done; waits for main-campaign data |
+| 5 | Diagnosis: mechanism rules with evidence vs Random Forest / XGBoost on baseline-relative features, L1–L4, grouped + leave-one-operation-out CV, abstention (`pipeline/diagnosis/`) | (to commit) | all methods on identical runs and splits; pilot dev check runs end to end | 🔄 code done; waits for main-campaign data |
 | 6 | Remediation engine (fault → fix), applied by switching to the fixed variant | — | every recommendation traceable to its evidence | ⬜ |
 | 7 | Verification: paired before/after runs, statistics, back to healthy | — | results for every fault | ⬜ |
 | 8 | Dashboard (Next.js) | — | every number traceable to a run | ⬜ |
@@ -54,6 +54,7 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Lab | `infrastructure/`, `scripts/lab-*.sh` | Pinned containers on 127.0.0.1 with fixed limits; up / seed / reset (~3 s) / status / probe / api. [README](infrastructure/README.md) |
 | Workload runner | `experiments/experiment_runner/` | Closed and open loop, Poisson, rate stages, request variants, send lag, traceparent, calibration |
 | Telemetry analysis | `pipeline/telemetry_analysis/` | Run-level client features, labels kept apart, leakage checks, request-to-span join |
+| Diagnosis | `pipeline/diagnosis/` | Baseline-relative features, mechanism rules with evidence, RF / XGBoost with abstention; evaluated per level L1–L4; [README](pipeline/diagnosis/README.md) |
 | Detection | `pipeline/detection/`, `pipeline/evaluation/` | Protocol rule per operation, verdicts with evidence, false-alarm / detection rates with 95 % CIs; only `evaluation/labels.py` reads labels; [README](pipeline/detection/README.md) |
 | Features (Analyzer v2) | `pipeline/features/` | 30 run features in L1–L4 (client, server, runtime, database/cache), interval-union database time, metadata kept apart; [README](pipeline/features/README.md) |
 | Tests | `scripts/test-all.sh`, `npm run test:lab`, `npm run lab:fault-checks` | 16 (+5 lab) / 22 / 14 pass; lab 5/5; fault checks 10/10 |
@@ -98,6 +99,7 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | 11 Nov | Protocol draft: main 220 runs, held-out 68 runs, exclusion rules, discarded warm-up run | Pilot noise and effect sizes (`experiments/protocol.md`) |
 | 11 Nov | **Protocol v1 frozen by team decision** with the pilot-supported values: anomalous = server-side run p50 > max(P99 healthy, 1.2 × healthy median); false alarms ≤ 5 %; back-to-healthy ± 10 %; preliminary thresholds 4.4–23.6 ms per operation | Pilot: every fault run above its threshold, both fixed variants below; to be presented to Prof. Sagar |
 | 11 Nov | Protocol rules enforced in code (clean git, discarded warm-up run, exclusions with one re-run) | Rules applied automatically, not by hand |
+| 11 Nov | Diagnosis evaluated on fault runs only (detection handles healthy vs faulty); CI and the experiment PC on Python 3.12 (`requirements.txt`: scikit-learn 1.9.1, XGBoost 3.4.1) | Detection → diagnosis is the architecture; numpy 2.5 needs Python 3.11+ |
 
 ## Open items
 
@@ -114,5 +116,6 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 1. Commit this step. Then run the **main campaign** (220 runs, about 4 h, from the committed tree).
 2. Analyzer v2 done (pilot features verified). When the main campaign ends: `python -m features.extract <main-id>`.
 3. **Held-out session** (68 runs) on another day.
-4. **Phase 4 detection** on the main-campaign features: per-operation baselines from healthy runs, the protocol rule, false-alarm and detection rates.
-5. Diagnosis → remediation → verification → dashboard → report.
+4. When the main campaign ends: features → detection → diagnosis on it (development numbers).
+5. Held-out session → final detection and diagnosis numbers.
+6. Remediation (Phase 6) → verification (Phase 7) → dashboard → report.

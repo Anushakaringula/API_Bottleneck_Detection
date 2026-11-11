@@ -85,12 +85,12 @@ class BoundaryTests(unittest.TestCase):
         return found
 
     def test_pipeline_never_imports_experiments_or_the_target_api(self):
-        for package in ("features", "detection", "evaluation", "telemetry_analysis"):
+        for package in ("features", "detection", "diagnosis", "evaluation", "telemetry_analysis"):
             names = {n.split(".")[0] for n in self.imports(package)}
             self.assertFalse(names & {"experiment_runner", "campaign"}, package)
 
     def test_only_evaluation_reads_labels(self):
-        for package in ("features", "detection", "telemetry_analysis"):
+        for package in ("features", "detection", "diagnosis", "telemetry_analysis"):
             self.assertNotIn("evaluation", {n.split(".")[0] for n in self.imports(package)}, package)
             for path in (PIPELINE / package).rglob("*.py"):
                 if "tests" not in path.parts:

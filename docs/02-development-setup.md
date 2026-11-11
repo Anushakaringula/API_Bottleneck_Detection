@@ -13,7 +13,7 @@ The commands below are for review, not to be pasted blindly.
 |---|---|---|
 | Node.js | 20 (CI uses 20; newer versions work for development) | `target-api/` |
 | npm | comes with Node | installs `target-api` dependencies from `package-lock.json` |
-| Python | 3.10 or newer, standard library only | `experiments/`, `pipeline/`, scripts |
+| Python | 3.12 (3.10+ for everything except diagnosis); `pip install -r requirements.txt` for diagnosis (scikit-learn, XGBoost) | `experiments/`, `pipeline/`, scripts |
 | bash, `sha256sum` | any | `scripts/*.sh` (Git Bash includes both on Windows) |
 
 ## Ubuntu (project laptop)

@@ -21,6 +21,9 @@ echo "== pipeline/features =="
 echo "== pipeline/detection =="
 "$ABR_PYTHON" -m unittest discover -s pipeline/detection/tests
 
+echo "== pipeline/diagnosis =="
+"$ABR_PYTHON" -m unittest discover -s pipeline/diagnosis/tests
+
 echo "== pipeline/telemetry_analysis =="
 "$ABR_PYTHON" -m unittest discover -s pipeline/telemetry_analysis/tests
 
