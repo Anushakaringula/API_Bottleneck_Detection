@@ -1,7 +1,7 @@
 # 2. Development setup
 
 The reference machine is the project laptop: **Ubuntu 22.04, Node.js 20,
-Python 3.10**. Experiments for the report run there. Team members on Windows can
+Python 3.12**. Experiments for the report run there. Team members on Windows can
 develop and run the tests in WSL2 (recommended) or Git Bash.
 
 No software is installed without the team reviewing the exact command first.
@@ -36,13 +36,13 @@ scripts/verify-legacy.sh    # needs the legacy data (see below)
 wsl --install -d Ubuntu-22.04     # one time, needs admin; reboot when asked
 ```
 
-Then inside Ubuntu, install Node 20 and Python 3.10 the same way as on the laptop.
+Then inside Ubuntu, install Node 20 and Python 3.12 the same way as on the laptop.
 Clone the repository **inside the Linux file system** (for example
 `~/API_Bottleneck_Detection`), not under `/mnt/c`, and follow the Ubuntu steps.
 
 ### Option B: Git Bash with native Windows Node and Python
 
-1. Install Python 3.10+ from python.org and tick "Add python.exe to PATH". The
+1. Install Python 3.12 (3.11+) from python.org and tick "Add python.exe to PATH". The
    `python`/`python3` entries under `WindowsApps` are Store shortcuts that do not
    run; turn them off in *Settings → Apps → Advanced app settings → App execution
    aliases*.
@@ -139,5 +139,5 @@ git reset --hard
 ## Continuous integration
 
 `.github/workflows/test.yml` runs `scripts/test-all.sh` on Ubuntu 22.04 with
-Node 20 and Python 3.10 on every push and pull request. `verify-legacy.sh` is not
+Node 20 and Python 3.12 on every push and pull request. `verify-legacy.sh` is not
 run in CI because the legacy data is not in git.

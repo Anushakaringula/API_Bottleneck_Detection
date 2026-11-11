@@ -108,7 +108,7 @@ payload, cache (Redis), and high concurrency. Memory is a stretch goal.
 |---|---|
 | Target API | Node.js 20, Express 5 |
 | Observability | OpenTelemetry (traces and metrics), Prometheus exporter |
-| Workload and analysis | Python 3.10 (standard library for the runner and analyzer) |
+| Workload and analysis | Python 3.12 (runner and analyzer: standard library; diagnosis ML: numpy, scikit-learn, XGBoost, SciPy from `requirements.txt`) |
 | Database and cache (planned) | PostgreSQL 14, Redis with the `node-redis` client |
 | ML (planned) | scikit-learn (Random Forest), XGBoost |
 | Dashboard (planned) | Next.js / React |

@@ -11,14 +11,19 @@ is not, the system should say "insufficient evidence" instead of guessing.
 
 | Step | What | Location | Status |
 |---|---|---|---|
-| 1 | API workload generation | `experiments/experiment_runner/` | Built (closed and open loop, rate profiles, calibration: 3.5B) |
-| 2 | OpenTelemetry instrumentation and telemetry collection | `target-api/` (emits), runner and analyzer (per-request correlation by trace ID) | Built (3.5A telemetry fixes implemented) |
-| 3 | Experiment execution and data collection | `experiments/` → `data/raw/` | Built |
-| 4 | Telemetry processing and feature engineering | `pipeline/telemetry_analysis/` → `data/processed/` | Built |
-| 5 | Detection (abnormal vs own healthy baseline) and diagnosis (likely bottleneck type, with evidence) | `pipeline/detection/`, `pipeline/diagnosis/` | Planned (Phases 4–5) |
-| 6 | Remediation recommendation or execution | `pipeline/remediation/` | Planned (Phase 6) |
-| 7 | Before-and-after verification | `pipeline/verification/` | Planned (Phase 7) |
-| 8 | Dashboard | `dashboard/` | Planned (Phase 8) |
+| 1 | API workload generation | `experiments/experiment_runner/` | Built (open loop, Poisson, calibration) |
+| 2 | OpenTelemetry instrumentation and telemetry collection | `target-api/` (emits), per-request correlation by trace ID | Built (100 % of requests matched) |
+| 3 | Experiment execution: campaigns with labels and protocol rules | `experiments/campaign/` → `data/raw/campaigns/` | Built; main campaign done (220 runs) |
+| 4 | Features in telemetry levels L1–L4 | `pipeline/features/` → `data/features/` | Built |
+| 5 | Detection (vs own healthy baseline) and diagnosis (bottleneck type, with evidence) | `pipeline/detection/`, `pipeline/diagnosis/` | Built: 93.6 % detected at 5.0 % false alarms; rules 110/110 |
+| 6 | Remediation recommendation | `pipeline/remediation/` | Built: right fix 110/110 |
+| 7 | Re-run and before-and-after verification; closed loop | `pipeline/verification/`, `experiments/campaign/loop.py` | Built: 7/10 fixes shown to improve; 2/2 closed loops verified |
+| 8 | Dashboard and results report | `dashboard/`, `pipeline/evaluation/report.py` → `docs/results.md` | Built |
+
+**Main finding so far:** latency alone shows *that* an API is slow, not *why*. Diagnosing the
+cause needs database and cache tracing (macro-F1 0.29 with client data, 0.95 with full
+tracing). Final numbers come from the held-out session. Explained in
+[docs/07-results-explained.md](docs/07-results-explained.md).
 
 **Progress: [PROGRESS.md](PROGRESS.md).** Planned folders are created only when their code is written. See
 [docs/architecture.md](docs/architecture.md) for the design,
@@ -28,17 +33,19 @@ wrong, and [docs/README.md](docs/README.md) for the full documentation.
 ## Repository layout
 
 ```
-target-api/        system under test: Express API + OpenTelemetry instrumentation (Node.js)
-experiments/       workload generation and experiment execution (Python) + experiment configs
-pipeline/          offline investigation system (Python): telemetry analysis now, detection etc. later
-data/              all recorded data; stages exchange work through files here (see data/README.md)
-scripts/           environment setup, test runner, legacy-data verification
-docs/              overview, architecture, how to run, roadmap
+target-api/        system under test: Express API + OpenTelemetry instrumentation (Node.js), injectable faults
+infrastructure/    local lab: PostgreSQL 16 + Redis 7 + the API in Docker Compose
+experiments/       workload runner, campaign orchestrator, closed loop (Python); configs; protocol.md
+pipeline/          investigation system (Python): features, detection, diagnosis, remediation, verification, evaluation
+dashboard/         read-only Next.js dashboard over data/results
+data/              all recorded data; stages exchange work through files here (see data/README.md); not in git
+scripts/           environment, lab control, tests, one-command campaign analysis
+docs/              guides (start at docs/README.md) and the generated results.md
 ```
 
 ## Quick start
 
-Requires Node.js 20 and Python 3.10 on Ubuntu (Windows: see [docs/02-development-setup.md](docs/02-development-setup.md)). No other installs are needed for
+Requires Node.js 20 and Python 3.12 (3.11+; `pip install -r requirements.txt`) on Ubuntu (Windows: see [docs/02-development-setup.md](docs/02-development-setup.md)). No other installs are needed for
 the current phases.
 
 ```sh

@@ -48,17 +48,9 @@ dashboard/                     Phase 8: Next.js read-only dashboard over data/re
 docs/                          documentation
 ```
 
-**Planned, created only when their code is written:**
-
-| Path | Phase | Purpose |
-|---|---|---|
-| `experiments/protocol.md` | 3.5D | Frozen experiment protocol |
-| `pipeline/detection/` | 4 | Detection |
-| `pipeline/diagnosis/` | 5 | Diagnosis, including `ml/` for Random Forest and XGBoost |
-| `pipeline/remediation/` | 6 | Fix recommendations |
-| `pipeline/verification/` | 7 | Before-and-after verification |
-| `pipeline/evaluation/` | 9 | Evaluation; also owns the label-access module |
-| `observability/` | Optional | Only if Collector, Prometheus or Grafana configs are added |
+All folders above exist and are built (11 Nov 2026). Still optional: `observability/`, only
+if Collector, Prometheus or Grafana configs are added. A stage-by-stage explanation of the
+finished system: [05-system-walkthrough.md](05-system-walkthrough.md).
 
 ## Detection and diagnosis
 
@@ -75,7 +67,7 @@ docs/                          documentation
   - Output: one or more types or `insufficient evidence`, with supporting,
     contradicting and missing evidence and a confidence level.
   - The primary method is a rule-based evidence engine.
-- **Random Forest and XGBoost** are diagnosis classifiers (`pipeline/diagnosis/ml/`)
+- **Random Forest and XGBoost** are diagnosis classifiers (`pipeline/diagnosis/ml.py`)
   compared against the rules.
   - They use the same baseline-relative features, the same runs and splits, and
     each telemetry level L1–L4.
@@ -87,7 +79,7 @@ docs/                          documentation
   - They get training labels only through one label-access module, which returns
     labels only for training-fold runs. No label is read at prediction time.
 
-## How a request flows through the system (today)
+## How a request flows through the system
 
 1. **Schedule.** `experiment_runner` reads a config from `experiments/configs/`
    and creates a run ID. It then sends warm-up and measured requests:
@@ -126,14 +118,14 @@ docs/                          documentation
    apart), observations, data quality and a manifest to
    `data/processed/<analysis-id>/`, plus the request-to-span join
    (`request_records.jsonl`, `request_join_summary.json`).
-8. **Later phases.**
-   - Detection compares the processed data with healthy baselines.
-   - Diagnosis explains detected anomalies.
-   - Remediation names a pre-written variant to try.
-   - The runner re-runs the same workload with that variant.
-   - Verification compares the before and after runs.
-   - Evaluation joins the results with the labels.
-   - The dashboard shows the results.
+8. **Analysis (Phases 4–9, built).** `scripts/analyze-campaign.sh <campaign>` runs them in order:
+   - features: 30 run features in levels L1–L4 (`pipeline/features/`);
+   - detection compares each run with its operation's healthy baseline;
+   - diagnosis explains anomalies (rules with evidence; Random Forest / XGBoost);
+   - remediation names the pre-written fixed variant;
+   - the closed loop (`campaign.loop`) re-runs the same workload with that variant;
+   - verification compares the before and after runs;
+   - evaluation joins the results with the labels; the dashboard and `docs/results.md` show them.
 
 ## Correlation
 

@@ -1,6 +1,6 @@
 # 3. Running the existing code
 
-Requirements: Node.js 20, Python 3.10, and the target API's npm packages
+Requirements: Node.js 20, Python 3.12 (3.11+, `pip install -r requirements.txt`), and the target API's npm packages
 (`cd target-api && npm ci`). The Python code uses only the standard library.
 Setup on Ubuntu or Windows: [02-development-setup.md](02-development-setup.md).
 
@@ -116,6 +116,33 @@ scripts/analyze-campaign.sh <heldout-id> --train <main-id>  # final evaluation
 cd dashboard && npm install && npm run dev                 # http://localhost:3001
 python -m evaluation.report --main <main-id> [--heldout <heldout-id>]   # docs/results.md, one section per research question
 ```
+
+### Held-out session (final numbers): exact procedure
+
+1. Another day than the main campaign. **Charger plugged in the whole time**: the campaign
+   refuses to start on battery, and runs on battery are excluded (protocol rule 5).
+2. Close other heavy programs (browser tabs with video, builds, analysis): background load
+   raises the client send lag, and those runs are excluded and re-run.
+3. Commit everything first (`git status` must be clean), then:
+   ```sh
+   source scripts/env.sh
+   python -m campaign.run --config experiments/configs/campaigns/heldout.json   # 68 runs, ~75 min
+   ```
+4. When it ends: `scripts/analyze-campaign.sh <heldout-id> --train main-20261111T100109-be3c28`,
+   then `python -m evaluation.report --main main-20261111T100109-be3c28 --heldout <heldout-id>`.
+   Analyse it **once**; the held-out data must not be used to change any method.
+
+### Campaign troubleshooting
+
+| Symptom | Cause | What to do |
+|---|---|---|
+| `protocol: ... git status must be clean` | uncommitted changes | commit, then start again |
+| `protocol: the machine is on battery` | charger unplugged | plug in the charger |
+| Run `FAILED: lab-reset.sh ... recovery mode` | PostgreSQL restarted | the reset retries once; if a run still fails, `python -m campaign.run --resume <campaign-id>` repeats only the missing runs |
+| Campaign interrupted (Ctrl+C, reboot) | — | `python -m campaign.run --resume <campaign-id>` |
+| Many runs excluded for send lag | other programs used the CPU | they are re-run automatically at the end; avoid heavy work during campaigns |
+| Power state of an old campaign | — | `python -m campaign.power <campaign-id>` (reads the Windows power log, writes `power.json`) |
+| Dashboard port 3001 in use | an old dashboard still runs | see [08-dashboard-guide.md](08-dashboard-guide.md#troubleshooting) |
 
 ## 3. Analyze the experiments
 
