@@ -23,7 +23,7 @@ Folders are created by the code that first writes to them.
 | `raw/campaigns/<campaign-id>/` *(from 3.5D)* | `campaign.run` | Analyzer, `campaign.summarize` | `manifest.json` (plan, environment), `progress.jsonl`, `experiments/<run>/` (runner artifacts, no ground truth), `db-stats/<run>.json`. Never edit. |
 | `labels/<campaign-id>.jsonl` *(from 3.5D)* | `campaign.run` | Evaluation and `campaign.summarize`; ML training for training-fold runs only, through one label-access module | Ground truth per run (operation, variant, fault, class, severity, fix). Never read at prediction time. |
 | `results/campaigns/<campaign-id>/` *(from 3.5D)* | `campaign.summarize` | Team, protocol | `report.md` / `summary.json`: healthy noise, effect per condition, telemetry completeness, run time |
-| `features/` *(from analyzer v2)* | `pipeline/telemetry_analysis` | Detection, diagnosis | Allowlisted predictor fields only |
+| `features/<campaign-id>/` *(Analyzer v2)* | `pipeline/features` | Detection, diagnosis | `features.jsonl` (allowlisted numeric predictors, L1–L4), `runs.jsonl` (route, coverage, exclusions; metadata), `schema.json`. No ground truth |
 | `results/{detection,diagnosis,remediation,verification,evaluation}/` *(from Phase 4)* | The matching pipeline stage | Later stages, dashboard | Each result names the feature set it came from |
 
 ## Leakage rules

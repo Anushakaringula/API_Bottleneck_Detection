@@ -36,6 +36,7 @@ experiments/                   workload generation + experiment execution (steps
   configs/                     experiment definitions; configs/campaigns/ (smoke.json, pilot.json)
 pipeline/                      investigation system (steps 4–7)
   telemetry_analysis/          step 4: processing, feature engineering, leakage checks
+  features/                    step 4 (Analyzer v2): run features L1–L4 per campaign, label-free
 data/                          data handed between stages (see data/README.md)
 scripts/                       env.sh, test-all.sh, verify-legacy.sh, compare_manifest.py, lab-up/down/reset/status.sh
 docs/                          documentation

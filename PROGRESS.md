@@ -35,7 +35,7 @@ remediation engine, verification, dashboard) has not started.
 | 3.5C-3 | Faults × 2 operations each, with fixed variants and severities | `7c2f018` | 10/10 fault checks, 3/3 severity ladders | ✅ |
 | 3.5D-1 | Campaign orchestrator, ground-truth labels, pilot campaign + pilot report, protocol draft | `0275bbb` | pilot 48/48 runs, 100 % requests matched; noise and effects measured | ✅ |
 | 3.5D-2 | Protocol v1 frozen (team decision), rules enforced in code, main campaign (220 runs) + held-out session (68 runs, another day) | — | data-quality report clean; exclusions reported | 🔄 tooling ready; main campaign starts after this commit |
-| Analyzer v2 | Server-side features, baseline-relative features, telemetry levels L1–L4 | — | no single feature separates operations | ⬜ |
+| Analyzer v2 | Run-level features from request telemetry, 30 features in levels L1–L4, label-free (`pipeline/features/`) | (to commit) | every pilot fault visible in its mechanism feature; tests 5/5 | ✅ verified, to commit |
 | 4 | Detection: normal / anomalous / inconclusive against healthy baselines | — | false-alarm and detection rates on held-out data | ⬜ |
 | 5 | Diagnosis: rules → Random Forest / XGBoost, abstention, L1–L4 | — | all methods on identical runs and splits | ⬜ |
 | 6 | Remediation engine (fault → fix), applied by switching to the fixed variant | — | every recommendation traceable to its evidence | ⬜ |
@@ -54,6 +54,7 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 | Lab | `infrastructure/`, `scripts/lab-*.sh` | Pinned containers on 127.0.0.1 with fixed limits; up / seed / reset (~3 s) / status / probe / api. [README](infrastructure/README.md) |
 | Workload runner | `experiments/experiment_runner/` | Closed and open loop, Poisson, rate stages, request variants, send lag, traceparent, calibration |
 | Telemetry analysis | `pipeline/telemetry_analysis/` | Run-level client features, labels kept apart, leakage checks, request-to-span join |
+| Features (Analyzer v2) | `pipeline/features/` | 30 run features in L1–L4 (client, server, runtime, database/cache), interval-union database time, metadata kept apart; [README](pipeline/features/README.md) |
 | Tests | `scripts/test-all.sh`, `npm run test:lab`, `npm run lab:fault-checks` | 16 (+5 lab) / 22 / 14 pass; lab 5/5; fault checks 10/10 |
 
 ### Injected faults (Phase 3.5C-3)
@@ -110,7 +111,7 @@ Legend: ✅ done and committed · 🔄 in progress · ⬜ not started.
 ## Next steps
 
 1. Commit this step. Then run the **main campaign** (220 runs, about 4 h, from the committed tree).
-2. While it runs: **Analyzer v2** (`pipeline/` only, so the target API and campaign code stay unchanged
-   during the campaign).
+2. Analyzer v2 done (pilot features verified). When the main campaign ends: `python -m features.extract <main-id>`.
 3. **Held-out session** (68 runs) on another day.
-4. Detection → diagnosis → remediation → verification → dashboard → report.
+4. **Phase 4 detection** on the main-campaign features: per-operation baselines from healthy runs, the protocol rule, false-alarm and detection rates.
+5. Diagnosis → remediation → verification → dashboard → report.

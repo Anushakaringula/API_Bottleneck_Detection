@@ -15,6 +15,9 @@ echo "== experiments/experiment_runner =="
 echo "== experiments/campaign =="
 "$ABR_PYTHON" -m unittest discover -s experiments/campaign/tests
 
+echo "== pipeline/features =="
+"$ABR_PYTHON" -m unittest discover -s pipeline/features/tests
+
 echo "== pipeline/telemetry_analysis =="
 "$ABR_PYTHON" -m unittest discover -s pipeline/telemetry_analysis/tests
 
