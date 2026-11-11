@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs the target API inside the lab network (Phase 3.5C-2).
-#   scripts/lab-api.sh up        build the image if needed, start, wait until healthy
+#   scripts/lab-api.sh build     build the image from the current code (after changing target-api/)
+#   scripts/lab-api.sh up        start (builds only if the image is missing), wait until healthy
 #   scripts/lab-api.sh down      stop and remove the container (SIGTERM: telemetry is flushed)
 #   scripts/lab-api.sh restart   down + up (e.g. with a different ABR_VARIANTS)
 #   scripts/lab-api.sh logs      follow the container log
@@ -11,8 +12,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/lab-common.sh"
 mkdir -p "$ABR_ROOT/data"
 api() { compose --profile api "$@"; }
 case "${1:-}" in
+  build)
+    api build api
+    ;;
   up)
-    api up -d --build --wait api
+    api up -d --wait api
     echo "target API is up in the lab network: http://127.0.0.1:3000 (metrics :9464)"
     ;;
   down)
@@ -28,7 +32,7 @@ case "${1:-}" in
     api logs -f api
     ;;
   *)
-    echo "usage: scripts/lab-api.sh up|down|restart|logs" >&2
+    echo "usage: scripts/lab-api.sh build|up|down|restart|logs" >&2
     exit 2
     ;;
 esac

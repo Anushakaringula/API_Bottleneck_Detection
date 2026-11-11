@@ -109,7 +109,7 @@ A run is **excluded** if any of the following holds:
 1. request-to-span correlation is not complete;
 2. more than 1 % of measured requests failed;
 3. client send-lag p99 > 10 ms (the client did not keep the timetable);
-4. the run's `git_dirty` flag is true, or its image ID differs from the campaign's.
+4. the run's `git_dirty` flag is true, or its image content identity differs from the campaign's (amendment of 11 Nov).
 
 Excluded runs are listed with their reason. They are re-run once at the end of the
 campaign, with the same condition and a new position. The number excluded per condition is
@@ -179,3 +179,4 @@ compared against it.
 | 11 Nov 2026 | Draft → v1 frozen; §9 values adopted by the team as proposed; preliminary thresholds added | team decision to proceed with the pilot-supported values; to be presented to Prof. Sagar |
 | 11 Nov 2026 | §8 verification statistics: unpaired one-sided Welch t-test on log server-side run p50 (Holm across pairs) with exact Mann-Whitney as a check, and TOST equivalence (90 % CI within ±10 %), instead of a paired Wilcoxon test | faulty and fixed runs are independent runs, not pairs; with 5 vs 3 runs the exact rank test's smallest p (1/56) cannot pass a Holm correction over 10 pairs |
 | 11 Nov 2026 | §6/§7 enforced in code: `require_clean_git`, `discard_warmup_runs`, `rerun_excluded`, `apply_exclusions` (`experiments/campaign/run.py`, `quality.py`); campaign configs `main.json`, `heldout.json` | the rules are applied automatically and reported, not by hand |
+| 11 Nov 2026 | §7 rule 4 compares the image's **content identity** (hash of layers + config, `lab.image_id`) instead of Docker's image ID; the API is no longer rebuilt before each run; the lab reset is retried once after a PostgreSQL restart | In the main campaign every run recorded a different Docker image ID although the code was unchanged: with Docker Desktop's containerd store the ID changes on every build (build metadata), while layers, config and creation time (2026-11-10 18:46 UTC) stayed identical; verified by rebuilding twice. `target-api/` had no commits during the campaign. For campaigns recorded with Docker IDs the rule cannot be applied from the IDs and is skipped. Separately, PostgreSQL restarted once during a reset (11:03), failing 2 runs; they are completed with `--resume`. |

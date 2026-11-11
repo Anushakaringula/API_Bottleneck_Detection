@@ -11,8 +11,8 @@ from campaign.summarize import summarize
 
 from test_campaign import BASE, FakeLab
 
-GOOD = {"correlation_status": "complete", "measured_requests": 150, "failed_requests": 0, "send_lag_p99_ms": 2.0, "image_id": "img-1"}
-ENV = {"git_dirty": False, "target_api_image_id": "img-1"}
+GOOD = {"correlation_status": "complete", "measured_requests": 150, "failed_requests": 0, "send_lag_p99_ms": 2.0, "image_id": "content:1"}
+ENV = {"git_dirty": False, "target_api_image_id": "content:1"}
 
 
 class ExclusionRuleTests(unittest.TestCase):
@@ -24,7 +24,7 @@ class ExclusionRuleTests(unittest.TestCase):
             "telemetry": {**GOOD, "correlation_status": "partial"},
             "failed requests": {**GOOD, "failed_requests": 2},
             "send-lag": {**GOOD, "send_lag_p99_ms": 10.5},
-            "image": {**GOOD, "image_id": "img-2"},
+            "image": {**GOOD, "image_id": "content:2"},
         }
         for word, record in cases.items():
             reasons = exclusion_reasons(record, ENV, DEFAULT_EXCLUSION)
@@ -33,6 +33,12 @@ class ExclusionRuleTests(unittest.TestCase):
         self.assertEqual(exclusion_reasons({**GOOD, "failed_requests": 1}, ENV, DEFAULT_EXCLUSION), [])  # 1/150 <= 1 %
         self.assertIn("git_dirty", exclusion_reasons(GOOD, {**ENV, "git_dirty": True}, DEFAULT_EXCLUSION)[0])
         self.assertTrue(exclusion_reasons({**GOOD, "send_lag_p99_ms": None}, ENV, DEFAULT_EXCLUSION))
+
+    def test_docker_image_ids_are_not_compared(self):
+        # Docker image IDs change on every rebuild of identical code: only content identities count.
+        legacy = {"git_dirty": False, "target_api_image_id": "sha256:aaa"}
+        self.assertEqual(exclusion_reasons({**GOOD, "image_id": "sha256:bbb"}, legacy, DEFAULT_EXCLUSION), [])
+        self.assertEqual(exclusion_reasons(GOOD, legacy, DEFAULT_EXCLUSION), [])
 
 
 def executor_with_lag(lagging_calls):

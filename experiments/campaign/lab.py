@@ -10,6 +10,7 @@ import os
 import platform
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +60,18 @@ class Lab:
                             "psql", "-U", "lab", "-d", "lab", "-X", "-q", "-t", "-A", "-c", sql)
 
     def reset(self) -> None:
-        self._script("lab-reset.sh")
+        """Recreates 'lab' from the template. Retried once if PostgreSQL was restarting (crash recovery)."""
+        try:
+            self._script("lab-reset.sh")
+        except LabError:
+            deadline = time.monotonic() + 120
+            while time.monotonic() < deadline:
+                try:
+                    self._docker("compose", "-f", str(COMPOSE_FILE), "exec", "-T", "postgres", "psql", "-U", "lab", "-d", "postgres", "-c", "SELECT 1")
+                    break
+                except LabError:
+                    time.sleep(2)
+            self._script("lab-reset.sh")
 
     def api_up(self, variants: dict[str, str], run_id: str) -> None:
         env = {"ABR_VARIANTS": json.dumps(variants), "EXPERIMENT_RUN_ID": run_id, "ABR_CALIBRATION": "", "ABR_RUNTIME_SAMPLE_MS": "1000"}
@@ -73,7 +85,15 @@ class Lab:
         self._docker("compose", "-f", str(COMPOSE_FILE), "--profile", "api", "build", "api", timeout=900)
 
     def image_id(self) -> str:
-        return self._docker("image", "inspect", "abr-target-api:lab", "--format", "{{.Id}}").strip()
+        """Content identity of the target-API image: a hash of its layers and config.
+
+        Docker's own image ID is not usable: with the containerd image store (Docker Desktop)
+        it changes on every build of identical code (build metadata), while layers and config
+        do not.
+        """
+        import hashlib
+        content = self._docker("image", "inspect", "abr-target-api:lab", "--format", "{{json .RootFS.Layers}}{{json .Config}}").strip()
+        return "content:" + hashlib.sha256(content.encode()).hexdigest()
 
     def api_logs_tail(self, lines: int = 20) -> str:
         try:
@@ -106,7 +126,7 @@ class Lab:
                 return f"unavailable: {error}"
         return {
             "docker_server_version": safe(lambda: self._docker("version", "--format", "{{.Server.Version}}").strip()),
-            "target_api_image_id": safe(lambda: self._docker("image", "inspect", "abr-target-api:lab", "--format", "{{.Id}}").strip()),
+            "target_api_image_id": safe(self.image_id),
             "postgres_version": safe(lambda: self.psql("SHOW server_version;").strip()),
             "git_commit": safe(lambda: subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.root, capture_output=True, text=True).stdout.strip()),
             "git_dirty": safe(lambda: bool(subprocess.run(["git", "status", "--porcelain"], cwd=self.root, capture_output=True, text=True).stdout.strip())),

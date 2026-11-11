@@ -36,7 +36,10 @@ def exclusion_reasons(record: dict[str, Any], environment: dict[str, Any], rules
         reasons.append(f"client send-lag p99 {lag if lag is None else round(lag, 1)} ms > {rules['max_send_lag_p99_ms']} ms")
     if environment.get("git_dirty") is True:
         reasons.append("code: uncommitted changes (git_dirty)")
-    campaign_image = environment.get("target_api_image_id")
-    if record.get("image_id") and campaign_image and record["image_id"] != campaign_image:
+    # Only content identities (lab.image_id) are comparable. Campaigns recorded before
+    # protocol amendment 4 hold Docker image IDs, which change on every rebuild of identical
+    # code; for those the rule cannot be applied from the IDs (see protocol.md, amendments).
+    run_image, campaign_image = record.get("image_id"), environment.get("target_api_image_id")
+    if all(isinstance(i, str) and i.startswith("content:") for i in (run_image, campaign_image)) and run_image != campaign_image:
         reasons.append("image: target-API image differs from the campaign's")
     return reasons
